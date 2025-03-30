@@ -1,0 +1,26 @@
+#root {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 2rem;
+  text-align: center;
+}
+
+.card {
+  padding: 2em;
+}
+
+.read-the-docs {
+  color: #888;
+}
+
+body {
+  background-image: url('./assets/Screenshot_20250315-121502_Gallery.jpg');;
+  background-size: 200px 200px; /* Each box is 100x100 pixels */
+  background-repeat: repeat; /* Tiles the image */
+}
+
+.just-a-giant-text {
+  font-size: 6rem;
+  font-family: 'Trebuchet MS', sans-serif;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5); /* Subtle shadow */
+}
