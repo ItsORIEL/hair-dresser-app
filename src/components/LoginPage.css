@@ -1,0 +1,150 @@
+/* Ensure the container takes the full viewport height */
+.login-container {
+    position: relative;
+    height: 100vh;  /* Use height: 100vh to cover entire screen */
+    background-color: #f7f7f7;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+  
+  /* Optional background circles for a soft, playful look */
+  .bg-circle1,
+  .bg-circle2 {
+    position: absolute;
+    background: #ffd6e0;
+    border-radius: 50%;
+    z-index: 0;
+  }
+  
+  .bg-circle1 {
+    width: 200px;
+    height: 200px;
+    top: -50px;
+    left: -50px;
+  }
+  
+  .bg-circle2 {
+    width: 300px;
+    height: 300px;
+    bottom: -100px;
+    right: -100px;
+  }
+  
+  /* The main card where the login form resides */
+  .login-card {
+    position: relative;
+    z-index: 1;
+    width: 320px;
+    padding: 40px 30px;
+    border-radius: 16px;
+    background-color: #fff;
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+    text-align: center;
+  }
+  
+  /* Title styling */
+  .login-card .title {
+    font-size: 24px;
+    margin-bottom: 24px;
+    color: #333;
+  }
+  
+  /* Wrapper around each input to handle spacing */
+  .input-wrapper {
+    margin-bottom: 20px;
+    text-align: left;
+    width: 18.4rem;
+  }
+  
+  /* Input fields styling */
+  .input-wrapper input {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    font-size: 14px;
+    outline: none;
+    transition: border 0.2s;
+  }
+  
+  .input-wrapper input:focus {
+    border-color: #ff6781;
+  }
+  
+  /* Login button styling */
+  .login-button {
+    width: 100%;
+    padding: 12px;
+    background: #ff6781;
+    color: #fff;
+    font-size: 16px;
+    font-weight: 600;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  
+  .login-button:hover {
+    background: #ff4f6b;
+  }
+  
+  /* --- Responsive Styles --- */
+  
+  /* For small devices (phones) */
+  @media (max-width: 480px) {
+    .login-card {
+      width: 90%;
+      padding: 30px 20px;
+    }
+  
+    .login-card .title {
+      font-size: 20px;
+      margin-bottom: 20px;
+    }
+  
+    .input-wrapper input {
+      padding: 10px;
+      font-size: 14px;
+      width: 22.2rem;
+    }
+
+    .input-wrapper {
+        padding: 10px;
+        font-size: 14px;
+      }
+  
+    .login-button {
+      padding: 10px;
+      font-size: 14px;
+    }
+  
+    .bg-circle1,
+    .bg-circle2 {
+      display: none;
+    }
+  }
+  
+  /* For medium devices (tablets) */
+  @media (min-width: 481px) and (max-width: 768px) {
+    .login-card {
+      width: 80%;
+      padding: 35px 25px;
+    }
+  
+    .login-card .title {
+      font-size: 22px;
+      margin-bottom: 22px;
+    }
+  }
+  
+  /* For larger screens (PC) */
+  @media (min-width: 769px) {
+    .login-card {
+      width: 320px;
+      padding: 40px 30px;
+    }
+  }
+  
