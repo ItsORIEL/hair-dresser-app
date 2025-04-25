@@ -263,3 +263,32 @@
       grid-template-columns: repeat(2, 1fr);
     }
   }
+
+  .time-button.booked {
+    background-color: #f0f0f0;
+    color: #aaa;
+    cursor: not-allowed;
+    border-color: #e0e0e0;
+    box-shadow: none;
+  }
+  
+  .time-button.booked:hover {
+    transform: none;
+    border-color: #e0e0e0;
+    color: #aaa;
+  }
+  
+  /* Style for time slots that are reserved by the current user */
+  .time-button.your-reservation {
+    background-color: #e8f4ff;
+    color: var(--secondary-color);
+    border-color: var(--secondary-color);
+    font-weight: 600;
+    cursor: not-allowed;
+  }
+  
+  .time-button.your-reservation:hover {
+    transform: none;
+    background-color: #e8f4ff;
+    color: var(--secondary-color);
+  }

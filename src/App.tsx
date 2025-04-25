@@ -7,6 +7,7 @@ interface Reservation {
   name: string;
   phone: string;
   time: string;
+  date: string;
 }
 
 const App: React.FC = () => {
@@ -20,15 +21,31 @@ const App: React.FC = () => {
   // The current user's reservation (to enforce one reservation per day).
   const [userReservation, setUserReservation] = useState<Reservation | null>(null);
 
+  // Utility function to get current date in format YYYY-MM-DD
+  const getCurrentDate = () => {
+    const today = new Date();
+    return today.toISOString().split('T')[0];
+  };
+
   // Login handler checks for admin credentials.
   const handleLogin = () => {
+    // Basic validation
+    if (!name.trim() || !phone.trim()) {
+      alert('Please enter both name and phone number');
+      return;
+    }
+
     if (name.toLowerCase() === 'oriel' && phone === '1234') {
       setPage('admin');
     } else {
-      // Check if this user already has a reservation.
+      // Check if this user already has a reservation for today
+      const currentDate = getCurrentDate();
       const existingReservation = reservations.find(
-        (res) => res.name === name && res.phone === phone
+        (res) => res.name === name && 
+                 res.phone === phone && 
+                 res.date === currentDate
       );
+      
       if (existingReservation) {
         setUserReservation(existingReservation);
       } else {
@@ -40,11 +57,37 @@ const App: React.FC = () => {
 
   // Reservation handler ensuring one reservation per day.
   const handleReservation = (time: string) => {
-    if (userReservation) {
+    const currentDate = getCurrentDate();
+
+    // Check if user already has a reservation for today
+    const existingUserReservation = reservations.find(
+      res => res.name === name && 
+             res.phone === phone && 
+             res.date === currentDate
+    );
+
+    if (existingUserReservation) {
       alert('You already have an active reservation for today!');
       return;
     }
-    const newReservation: Reservation = { name, phone, time };
+
+    // Check if time is already booked by anyone
+    const isTimeBooked = reservations.some(
+      res => res.time === time && res.date === currentDate
+    );
+
+    if (isTimeBooked) {
+      alert('This time slot is no longer available.');
+      return;
+    }
+
+    const newReservation: Reservation = { 
+      name, 
+      phone, 
+      time, 
+      date: currentDate 
+    };
+
     setUserReservation(newReservation);
     setReservations((prev) => [...prev, newReservation]);
     alert(`Reservation confirmed for ${time}`);
@@ -68,26 +111,41 @@ const App: React.FC = () => {
     if (userReservation && 
         userReservation.name === deletedReservation.name && 
         userReservation.phone === deletedReservation.phone &&
-        userReservation.time === deletedReservation.time) {
+        userReservation.time === deletedReservation.time &&
+        userReservation.date === deletedReservation.date) {
       setUserReservation(null);
     }
   };
 
   // "Go Back" resets the view back to the login page.
   const goBack = () => {
-    // We don't clear the user's reservation here, so that if the same credentials are used,
-    // the system will detect the existing reservation.
     setPage('login');
   };
 
   // Available times at 30-minute intervals.
   const availableTimes = [
-    '09:00', '09:30', '10:00', '10:30',
-    '11:00', '11:30', '12:00', '12:30',
-    '13:00', '13:30', '14:00', '14:30',
-    '15:00', '15:30', '16:00', '16:30',
-    '17:00', '17:30'
+    '9:00 AM', '9:30 AM', '10:00 AM', '10:30 AM',
+    '11:00 AM', '11:30 AM', '12:00 PM', '12:30 PM', 
+    '1:00 PM', '1:30 PM', '2:00 PM', '2:30 PM',
+    '3:00 PM', '3:30 PM', '4:00 PM', '4:30 PM', 
+    '5:00 PM', '5:30 PM'
   ];
+
+  // Check if a time slot is reserved by the current user
+  const isReservedByCurrentUser = (time: string) => {
+    const currentDate = getCurrentDate();
+    return userReservation?.time === time && userReservation?.date === currentDate;
+  };
+
+  // Check if a time slot is booked by someone else
+  const isReservedByOthers = (time: string) => {
+    const currentDate = getCurrentDate();
+    return reservations.some(res => 
+      res.time === time && 
+      res.date === currentDate && 
+      (res.name !== name || res.phone !== phone)
+    );
+  };
 
   return (
     <div>
@@ -106,6 +164,8 @@ const App: React.FC = () => {
           userReservation={userReservation}
           handleReservation={handleReservation}
           goBack={goBack}
+          isReservedByCurrentUser={isReservedByCurrentUser}
+          isReservedByOthers={isReservedByOthers}
         />
       )}
       {page === 'admin' && (
