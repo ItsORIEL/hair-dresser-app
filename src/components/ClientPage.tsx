@@ -12,49 +12,66 @@ interface ClientPageProps {
   availableTimes: string[];
   userReservation: Reservation | null;
   handleReservation: (time: string) => void;
+  cancelReservation: () => void;
   goBack: () => void;
   isReservedByCurrentUser: (time: string) => boolean;
   isReservedByOthers: (time: string) => boolean;
+  selectedDate: string;
+  setSelectedDate: (date: string) => void;
+  generateNextFiveDays: () => { day: string, date: string, fullDate: string }[];
 }
 
 export const ClientPage: React.FC<ClientPageProps> = ({
   availableTimes,
   userReservation,
   handleReservation,
+  cancelReservation,
   goBack,
   isReservedByCurrentUser,
-  isReservedByOthers
+  isReservedByOthers,
+  selectedDate,
+  setSelectedDate,
+  generateNextFiveDays
 }) => {
-  // State for dates and selected date
-  const [dates, setDates] = useState<{ day: string, date: string }[]>([]);
-  const [selectedDate, setSelectedDate] = useState<number>(0);
-
-  // Function to generate next 5 days
-  const generateNextFiveDays = () => {
-    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-    const generatedDates = [];
-    
-    for (let i = 0; i < 5; i++) {
-      const currentDate = new Date();
-      currentDate.setDate(currentDate.getDate() + i);
-      
-      generatedDates.push({
-        day: days[currentDate.getDay()],
-        date: currentDate.toLocaleDateString('en-US', { 
-          month: 'short', 
-          day: 'numeric' 
-        })
-      });
-    }
-    
-    return generatedDates;
-  };
+  // State for dates
+  const [dates, setDates] = useState<{ day: string, date: string, fullDate: string }[]>([]);
+  const [selectedTime, setSelectedTime] = useState<string | null>(null);
 
   // Generate dates on component mount
   useEffect(() => {
     const generatedDates = generateNextFiveDays();
     setDates(generatedDates);
   }, []);
+
+  // When user selects a time
+  const handleTimeSelection = (time: string) => {
+    if (userReservation) {
+      // If already has reservation, ask to change
+      if (window.confirm(`Change your appointment to ${time}?`)) {
+        handleReservation(time);
+      }
+    } else {
+      // If no reservation yet, just select the time
+      setSelectedTime(time);
+    }
+  };
+
+  // Handle cancel button click
+  const handleCancelClick = () => {
+    if (window.confirm('Are you sure you want to cancel your appointment?')) {
+      cancelReservation();
+    }
+  };
+
+  // Handle confirm button click
+  const handleConfirmClick = () => {
+    if (selectedTime) {
+      handleReservation(selectedTime);
+      setSelectedTime(null);
+    } else {
+      alert('Please select a time first');
+    }
+  };
 
   return (
     <div className="appointment-container">
@@ -74,7 +91,7 @@ export const ClientPage: React.FC<ClientPageProps> = ({
                 <p className="card-title">Haircut with Nicole</p>
                 <p className="card-subtitle">60 minutes • {userReservation.time} • Classic service</p>
               </div>
-              <button className="close-button">×</button>
+              <button className="close-button" onClick={handleCancelClick}>×</button>
             </div>
           ) : (
             <div>
@@ -97,8 +114,8 @@ export const ClientPage: React.FC<ClientPageProps> = ({
           {dates.map((dateObj, index) => (
             <div 
               key={index}
-              className={`date-option ${selectedDate === index ? 'selected' : ''}`}
-              onClick={() => setSelectedDate(index)}
+              className={`date-option ${selectedDate === dateObj.fullDate ? 'selected' : ''}`}
+              onClick={() => setSelectedDate(dateObj.fullDate)}
             >
               <div className="date-day">{dateObj.day}</div>
               <div className="date-number">{dateObj.date}</div>
@@ -116,24 +133,39 @@ export const ClientPage: React.FC<ClientPageProps> = ({
           {availableTimes.map((time, index) => {
             const yourReservation = isReservedByCurrentUser(time);
             const unavailable = isReservedByOthers(time);
+            const isSelected = selectedTime === time && !userReservation;
             
             return (
               <button
                 key={index}
-                className={`time-button ${yourReservation ? 'your-reservation' : ''} ${unavailable ? 'booked' : ''}`}
-                onClick={() => !yourReservation && !unavailable && handleReservation(time)}
-                disabled={yourReservation || unavailable}
+                className={`time-button ${yourReservation ? 'your-reservation' : ''} ${unavailable ? 'booked' : ''} ${isSelected ? 'selected' : ''}`}
+                onClick={() => !unavailable && handleTimeSelection(time)}
+                disabled={unavailable}
               >
-                {yourReservation ? "Reserved for you!" : unavailable ? "Unavailable" : time}
+                {yourReservation ? "Your Appointment" : unavailable ? "Unavailable" : time}
               </button>
             );
           })}
         </div>
         
         {!userReservation && (
-          <button className="action-button" onClick={() => handleReservation(availableTimes[0])}>
-            Confirm Selection
-          </button>
+          <div className="button-group">
+            <button 
+              className="action-button" 
+              onClick={handleConfirmClick}
+              disabled={!selectedTime}
+            >
+              Confirm Selection
+            </button>
+          </div>
+        )}
+
+        {userReservation && (
+          <div className="button-group">
+            <button className="cancel-button" onClick={handleCancelClick}>
+              Cancel Appointment
+            </button>
+          </div>
         )}
       </div>
     </div>

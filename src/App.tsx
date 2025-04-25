@@ -3,33 +3,42 @@ import { LoginPage } from './components/LoginPage';
 import { ClientPage } from './components/ClientPage';
 import { AdminDashboard } from './components/AdminDashboard';
 
+// Utility function to get current date in format YYYY-MM-DD
+const getCurrentDate = (offset: number = 0) => {
+  const today = new Date();
+  today.setDate(today.getDate() + offset);
+  return today.toISOString().split('T')[0];
+};
+
 interface Reservation {
   name: string;
   phone: string;
   time: string;
   date: string;
+  id: string; // Unique identifier
 }
 
 const App: React.FC = () => {
-  // Determine which view to show: login, client, or admin.
   const [page, setPage] = useState<'login' | 'client' | 'admin'>('login');
-  // Login details.
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
-  // All reservations made (for admin view).
   const [reservations, setReservations] = useState<Reservation[]>([]);
-  // The current user's reservation (to enforce one reservation per day).
-  const [userReservation, setUserReservation] = useState<Reservation | null>(null);
+  const [selectedDate, setSelectedDate] = useState<string>(getCurrentDate());
 
-  // Utility function to get current date in format YYYY-MM-DD
-  const getCurrentDate = () => {
-    const today = new Date();
-    return today.toISOString().split('T')[0];
+  const generateNextFiveDays = () => {
+    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    return Array.from({ length: 5 }, (_, i) => {
+      const date = new Date();
+      date.setDate(date.getDate() + i);
+      return {
+        day: days[date.getDay()],
+        date: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+        fullDate: date.toISOString().split('T')[0]
+      };
+    });
   };
 
-  // Login handler checks for admin credentials.
   const handleLogin = () => {
-    // Basic validation
     if (!name.trim() || !phone.trim()) {
       alert('Please enter both name and phone number');
       return;
@@ -38,91 +47,69 @@ const App: React.FC = () => {
     if (name.toLowerCase() === 'oriel' && phone === '1234') {
       setPage('admin');
     } else {
-      // Check if this user already has a reservation for today
-      const currentDate = getCurrentDate();
-      const existingReservation = reservations.find(
-        (res) => res.name === name && 
-                 res.phone === phone && 
-                 res.date === currentDate
-      );
-      
-      if (existingReservation) {
-        setUserReservation(existingReservation);
-      } else {
-        setUserReservation(null);
-      }
       setPage('client');
     }
   };
 
-  // Reservation handler ensuring one reservation per day.
   const handleReservation = (time: string) => {
-    const currentDate = getCurrentDate();
+    // Generate a unique ID for the reservation
+    const reservationId = `${name}-${phone}-${selectedDate}-${time}`;
 
-    // Check if user already has a reservation for today
-    const existingUserReservation = reservations.find(
-      res => res.name === name && 
-             res.phone === phone && 
-             res.date === currentDate
-    );
-
-    if (existingUserReservation) {
-      alert('You already have an active reservation for today!');
-      return;
-    }
-
-    // Check if time is already booked by anyone
+    // Check if the time slot is booked by another user
     const isTimeBooked = reservations.some(
-      res => res.time === time && res.date === currentDate
+      res => res.time === time && 
+             res.date === selectedDate && 
+             (res.name !== name || res.phone !== phone)
     );
 
     if (isTimeBooked) {
-      alert('This time slot is no longer available.');
+      alert('This time slot is already booked by another user.');
       return;
     }
 
-    const newReservation: Reservation = { 
-      name, 
-      phone, 
-      time, 
-      date: currentDate 
+    // Remove any existing reservation for this specific user on this date
+    const updatedReservations = reservations.filter(
+      res => !(res.name === name && 
+               res.phone === phone && 
+               res.date === selectedDate)
+    );
+
+    // Create new reservation
+    const newReservation: Reservation = {
+      name,
+      phone,
+      time,
+      date: selectedDate,
+      id: reservationId
     };
 
-    setUserReservation(newReservation);
-    setReservations((prev) => [...prev, newReservation]);
-    alert(`Reservation confirmed for ${time}`);
+    // Update reservations
+    setReservations([...updatedReservations, newReservation]);
+    alert(`Reservation confirmed for ${selectedDate} at ${time}`);
   };
 
-  // Delete reservation handler for admin dashboard
   const handleDeleteReservation = (index: number) => {
-    // Create a copy of the reservations array
     const updatedReservations = [...reservations];
-    
-    // Get the reservation that's being deleted
-    const deletedReservation = updatedReservations[index];
-    
-    // Remove the reservation at the specified index
     updatedReservations.splice(index, 1);
-    
-    // Update the reservations state
     setReservations(updatedReservations);
-    
-    // If this was the user's reservation, clear it
-    if (userReservation && 
-        userReservation.name === deletedReservation.name && 
-        userReservation.phone === deletedReservation.phone &&
-        userReservation.time === deletedReservation.time &&
-        userReservation.date === deletedReservation.date) {
-      setUserReservation(null);
-    }
   };
 
-  // "Go Back" resets the view back to the login page.
+  const handleCancelUserReservation = () => {
+    // Find and remove the user's reservation for the current date
+    const updatedReservations = reservations.filter(
+      res => !(res.name === name && 
+               res.phone === phone && 
+               res.date === selectedDate)
+    );
+    
+    setReservations(updatedReservations);
+    alert('Your appointment has been cancelled.');
+  };
+
   const goBack = () => {
     setPage('login');
   };
 
-  // Available times at 30-minute intervals.
   const availableTimes = [
     '9:00 AM', '9:30 AM', '10:00 AM', '10:30 AM',
     '11:00 AM', '11:30 AM', '12:00 PM', '12:30 PM', 
@@ -131,19 +118,24 @@ const App: React.FC = () => {
     '5:00 PM', '5:30 PM'
   ];
 
-  // Check if a time slot is reserved by the current user
-  const isReservedByCurrentUser = (time: string) => {
-    const currentDate = getCurrentDate();
-    return userReservation?.time === time && userReservation?.date === currentDate;
+  const getUserReservationForDate = () => {
+    return reservations.find(
+      res => res.name === name && 
+             res.phone === phone && 
+             res.date === selectedDate
+    ) || null; // Explicitly return null if no reservation found
   };
 
-  // Check if a time slot is booked by someone else
+  const isReservedByCurrentUser = (time: string) => {
+    const userReservation = getUserReservationForDate();
+    return userReservation?.time === time;
+  };
+
   const isReservedByOthers = (time: string) => {
-    const currentDate = getCurrentDate();
-    return reservations.some(res => 
-      res.time === time && 
-      res.date === currentDate && 
-      (res.name !== name || res.phone !== phone)
+    return reservations.some(
+      res => res.time === time && 
+             res.date === selectedDate && 
+             (res.name !== name || res.phone !== phone)
     );
   };
 
@@ -161,11 +153,15 @@ const App: React.FC = () => {
       {page === 'client' && (
         <ClientPage
           availableTimes={availableTimes}
-          userReservation={userReservation}
+          userReservation={getUserReservationForDate()}
           handleReservation={handleReservation}
+          cancelReservation={handleCancelUserReservation}
           goBack={goBack}
           isReservedByCurrentUser={isReservedByCurrentUser}
           isReservedByOthers={isReservedByOthers}
+          selectedDate={selectedDate}
+          setSelectedDate={setSelectedDate}
+          generateNextFiveDays={generateNextFiveDays}
         />
       )}
       {page === 'admin' && (
