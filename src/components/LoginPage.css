@@ -13,7 +13,7 @@
   .bg-circle1,
   .bg-circle2 {
     position: absolute;
-    background: #ffd6e0;
+    background: #ffd6e1;
     border-radius: 50%;
     z-index: 0;
   }
