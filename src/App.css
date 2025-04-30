@@ -13,11 +13,6 @@
   color: #888;
 }
 
-body {
-  background-image: url('./assets/Screenshot_20250315-121502_Gallery.jpg');;
-  background-size: 200px 200px; /* Each box is 100x100 pixels */
-  background-repeat: repeat; /* Tiles the image */
-}
 
 .just-a-giant-text {
   font-size: 6rem;

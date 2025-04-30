@@ -1,7 +1,18 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { LoginPage } from './components/LoginPage';
 import { ClientPage } from './components/ClientPage';
 import { AdminDashboard } from './components/AdminDashboard';
+import './App.css';
+
+// Import Firebase service
+import { 
+  getReservations, 
+  createReservation, 
+  deleteReservation, 
+  getUserReservationForDate,
+  isTimeSlotAvailable,
+  Reservation
+} from './services/firebase-service';
 
 // Utility function to get current date in format YYYY-MM-DD
 const getCurrentDate = (offset: number = 0) => {
@@ -10,20 +21,23 @@ const getCurrentDate = (offset: number = 0) => {
   return today.toISOString().split('T')[0];
 };
 
-interface Reservation {
-  name: string;
-  phone: string;
-  time: string;
-  date: string;
-  id: string; // Unique identifier
-}
-
 const App: React.FC = () => {
   const [page, setPage] = useState<'login' | 'client' | 'admin'>('login');
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [selectedDate, setSelectedDate] = useState<string>(getCurrentDate());
+  const [loading, setLoading] = useState<boolean>(false);
+
+  // Subscribe to reservations from Firebase
+  useEffect(() => {
+    const unsubscribe = getReservations((fetchedReservations) => {
+      setReservations(fetchedReservations);
+    });
+
+    // Clean up the listener when component unmounts
+    return () => unsubscribe();
+  }, []);
 
   const generateNextFiveDays = () => {
     const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -51,59 +65,74 @@ const App: React.FC = () => {
     }
   };
 
-  const handleReservation = (time: string) => {
-    // Generate a unique ID for the reservation
-    const reservationId = `${name}-${phone}-${selectedDate}-${time}`;
+  const handleReservation = async (time: string) => {
+    setLoading(true);
+    try {
+      // Check if this time slot is available
+      const isAvailable = await isTimeSlotAvailable(
+        selectedDate, 
+        time, 
+        { name, phone } // Exclude the current user's existing reservation
+      );
 
-    // Check if the time slot is booked by another user
-    const isTimeBooked = reservations.some(
-      res => res.time === time && 
-             res.date === selectedDate && 
-             (res.name !== name || res.phone !== phone)
-    );
+      if (!isAvailable) {
+        alert('This time slot has just been booked by someone else. Please select another time.');
+        return;
+      }
 
-    if (isTimeBooked) {
-      alert('This time slot is already booked by another user.');
-      return;
+      // Check if user already has a reservation for this date
+      const existingReservation = await getUserReservationForDate(name, phone, selectedDate);
+      
+      if (existingReservation) {
+        // Delete the old reservation
+        await deleteReservation(existingReservation.id!);
+      }
+      
+      // Create new reservation
+      const newReservation: Reservation = {
+        name,
+        phone,
+        time,
+        date: selectedDate
+      };
+      
+      await createReservation(newReservation);
+      alert(`Reservation confirmed for ${selectedDate} at ${time}`);
+    } catch (error) {
+      console.error("Error making reservation:", error);
+      alert('Failed to make reservation. Please try again.');
+    } finally {
+      setLoading(false);
     }
-
-    // Remove any existing reservation for this specific user on this date
-    const updatedReservations = reservations.filter(
-      res => !(res.name === name && 
-               res.phone === phone && 
-               res.date === selectedDate)
-    );
-
-    // Create new reservation
-    const newReservation: Reservation = {
-      name,
-      phone,
-      time,
-      date: selectedDate,
-      id: reservationId
-    };
-
-    // Update reservations
-    setReservations([...updatedReservations, newReservation]);
-    alert(`Reservation confirmed for ${selectedDate} at ${time}`);
   };
 
-  const handleDeleteReservation = (index: number) => {
-    const updatedReservations = [...reservations];
-    updatedReservations.splice(index, 1);
-    setReservations(updatedReservations);
+  const handleDeleteReservation = async (id: string) => {
+    try {
+      await deleteReservation(id);
+    } catch (error) {
+      console.error("Error deleting reservation:", error);
+      alert('Failed to delete reservation.');
+    }
   };
 
-  const handleCancelUserReservation = () => {
-    // Find and remove the user's reservation for the current date
-    const updatedReservations = reservations.filter(
-      res => !(res.name === name && 
-               res.phone === phone && 
-               res.date === selectedDate)
-    );
-    
-    setReservations(updatedReservations);
-    alert('Your appointment has been cancelled.');
+  const handleCancelUserReservation = async () => {
+    setLoading(true);
+    try {
+      // Find user's reservation for the current date
+      const userReservation = await getUserReservationForDate(name, phone, selectedDate);
+      
+      if (userReservation && userReservation.id) {
+        await deleteReservation(userReservation.id);
+        alert('Your appointment has been cancelled.');
+      } else {
+        alert('No appointment found to cancel.');
+      }
+    } catch (error) {
+      console.error("Error cancelling reservation:", error);
+      alert('Failed to cancel reservation.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const goBack = () => {
@@ -118,16 +147,16 @@ const App: React.FC = () => {
     '5:00 PM', '5:30 PM'
   ];
 
-  const getUserReservationForDate = () => {
+  const getUserReservationForSelectedDate = () => {
     return reservations.find(
       res => res.name === name && 
              res.phone === phone && 
              res.date === selectedDate
-    ) || null; // Explicitly return null if no reservation found
+    ) || null;
   };
 
   const isReservedByCurrentUser = (time: string) => {
-    const userReservation = getUserReservationForDate();
+    const userReservation = getUserReservationForSelectedDate();
     return userReservation?.time === time;
   };
 
@@ -141,6 +170,30 @@ const App: React.FC = () => {
 
   return (
     <div>
+      {loading && (
+        <div style={{ 
+          position: 'fixed', 
+          top: 0, 
+          left: 0, 
+          right: 0, 
+          bottom: 0, 
+          backgroundColor: 'rgba(0,0,0,0.5)', 
+          display: 'flex', 
+          justifyContent: 'center', 
+          alignItems: 'center',
+          zIndex: 1000
+        }}>
+          <div style={{ 
+            padding: '20px', 
+            backgroundColor: 'white', 
+            borderRadius: '8px',
+            boxShadow: '0 2px 10px rgba(0,0,0,0.2)'
+          }}>
+            Loading...
+          </div>
+        </div>
+      )}
+
       {page === 'login' && (
         <LoginPage
           name={name}
@@ -153,7 +206,7 @@ const App: React.FC = () => {
       {page === 'client' && (
         <ClientPage
           availableTimes={availableTimes}
-          userReservation={getUserReservationForDate()}
+          userReservation={getUserReservationForSelectedDate()}
           handleReservation={handleReservation}
           cancelReservation={handleCancelUserReservation}
           goBack={goBack}

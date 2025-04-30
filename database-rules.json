@@ -1,0 +1,9 @@
+{
+    "rules": {
+      ".read": true,
+      ".write": true,
+      "reservations": {
+        ".indexOn": ["date", "name", "phone"]
+      }
+    }
+  }

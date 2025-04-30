@@ -1,17 +1,12 @@
 // AdminDashboard.tsx
 import React, { useState } from 'react';
 import './AdminDashboard.css';
-
-interface Reservation {
-  name: string;
-  phone: string;
-  time: string;
-}
+import { Reservation } from '../services/firebase-service';
 
 interface AdminDashboardProps {
   reservations: Reservation[];
   goBack: () => void;
-  onDeleteReservation: (index: number) => void; // Add this prop
+  onDeleteReservation: (id: string) => void;
 }
 
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({ 
@@ -21,8 +16,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 }) => {
   const [selectedDay] = useState<string>('all');
   
+  // Get today's date in YYYY-MM-DD format
+  const today = new Date().toISOString().split('T')[0];
+  
   // Get today's date in a readable format
-  const today = new Date().toLocaleDateString('en-US', { 
+  const todayReadable = new Date().toLocaleDateString('en-US', { 
     weekday: 'long', 
     month: 'short', 
     day: 'numeric' 
@@ -30,33 +28,56 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   
   // Calculate statistics
   const totalReservations = reservations.length;
-  const todayReservations = reservations.filter(res => {
-    // In a real app, you would filter by today's date
-    // For demo purposes, we'll just take a subset
-    return res.time.includes('1:00');
-  }).length;
+  
+  const todayReservations = reservations.filter(res => 
+    res.date === today
+  ).length;
   
   const upcomingReservations = reservations.filter(res => {
-    // In a real app, you would compare with current time
-    // For demo purposes, we'll just take a subset
-    return res.time.includes('2:00') || res.time.includes('3:00');
+    const resDate = new Date(res.date);
+    const currentDate = new Date();
+    return resDate > currentDate && res.date !== today;
   }).length;
   
   // Filter reservations based on selected day
   const filteredReservations = selectedDay === 'all' 
     ? reservations 
     : reservations.filter(res => {
-        // In a real app, you would filter by the selected day
-        // For demo, we'll just pretend
-        return selectedDay === 'today' ? res.time.includes('1:00') : true;
+        return selectedDay === 'today' ? res.date === today : true;
       });
 
   // Function to handle cancellation confirmation
-  const handleCancelClick = (index: number) => {
+  const handleCancelClick = (id: string) => {
     if (window.confirm('Are you sure you want to cancel this appointment?')) {
-      onDeleteReservation(index);
+      onDeleteReservation(id);
     }
   };
+
+  // Sort reservations by date and time
+  const sortedReservations = [...filteredReservations].sort((a, b) => {
+    // First compare by date
+    if (a.date !== b.date) {
+      return a.date.localeCompare(b.date);
+    }
+    
+    // If dates are the same, compare by time
+    // Extract hour and convert to 24-hour format for proper sorting
+    const getTimeValue = (timeStr: string) => {
+      const hourMatch = timeStr.match(/(\d+):(\d+)\s*([AP]M)/i);
+      if (!hourMatch) return 0;
+      
+      let hour = parseInt(hourMatch[1]);
+      const minute = parseInt(hourMatch[2]);
+      const ampm = hourMatch[3].toUpperCase();
+      
+      if (ampm === 'PM' && hour < 12) hour += 12;
+      if (ampm === 'AM' && hour === 12) hour = 0;
+      
+      return hour * 60 + minute;
+    };
+    
+    return getTimeValue(a.time) - getTimeValue(b.time);
+  });
 
   return (
     <div className="admin-container">
@@ -87,12 +108,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       <div className="reservations-card">
         <div className="section-header">
           <h2 className="section-title">Appointments</h2>
-          <button className="add-button">
-            <span className="add-icon">+</span> Add Appointment
-          </button>
         </div>
         
-        {reservations.length === 0 ? (
+        {sortedReservations.length === 0 ? (
           <div className="empty-state">
             <div className="empty-icon">📅</div>
             <p>No appointments have been made yet.</p>
@@ -103,20 +121,22 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               <tr>
                 <th>Client</th>
                 <th>Phone</th>
+                <th>Date</th>
                 <th>Time</th>
                 <th>Actions</th>
               </tr>
             </thead>
             <tbody>
-              {filteredReservations.map((res, index) => (
-                <tr key={index} className="reservation-row">
+              {sortedReservations.map((res) => (
+                <tr key={res.id} className="reservation-row">
                   <td className="reservation-name">{res.name}</td>
                   <td className="reservation-phone">{res.phone}</td>
+                  <td>{new Date(res.date).toLocaleDateString()}</td>
                   <td className="reservation-time">{res.time}</td>
                   <td className="actions-cell">
                     <button 
                       className="action-button-small delete"
-                      onClick={() => handleCancelClick(index)}
+                      onClick={() => handleCancelClick(res.id!)}
                     >
                       Cancel
                     </button>
@@ -131,7 +151,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       {/* Additional info section */}
       <div className="reservations-card">
         <div className="section-header">
-          <h2 className="section-title">Today • {today}</h2>
+          <h2 className="section-title">Today • {todayReadable}</h2>
         </div>
         
         <p>
