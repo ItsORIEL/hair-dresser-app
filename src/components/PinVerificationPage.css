@@ -1,0 +1,128 @@
+/* src/components/PinVerificationPage.css */
+.pin-verification-container {
+    position: relative;
+    height: 100vh;
+    background-color: #f7f7f7;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+  
+  .pin-verification-card {
+    position: relative;
+    z-index: 1;
+    width: 320px;
+    padding: 40px 30px;
+    border-radius: 16px;
+    background-color: #fff;
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+    text-align: center;
+  }
+  
+  .pin-verification-card .title {
+    font-size: 24px;
+    margin-bottom: 24px;
+    color: #333;
+  }
+  
+  .verification-info {
+    font-size: 14px;
+    margin-bottom: 20px;
+    color: #555;
+    line-height: 1.4;
+  }
+  
+  .input-wrapper {
+    margin-bottom: 20px;
+    text-align: left;
+    width: 100%;
+  }
+  
+  .input-wrapper input {
+    width: 92%;
+    padding: 12px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    font-size: 16px;
+    letter-spacing: 2px;
+    text-align: center;
+    outline: none;
+    transition: border 0.2s;
+  }
+  
+  .input-wrapper input:focus {
+    border-color: #4a90e2;
+  }
+  
+  .input-wrapper input.error {
+    border-color: #ff3366;
+  }
+  
+  .error-message {
+    color: #ff3366;
+    font-size: 12px;
+    margin-top: 8px;
+    margin-bottom: 0;
+  }
+  
+  .verify-button {
+    width: 100%;
+    padding: 12px;
+    background: #4a90e2;
+    color: #fff;
+    font-size: 16px;
+    font-weight: 600;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.2s;
+    margin-bottom: 16px;
+  }
+  
+  .verify-button:hover:not(:disabled) {
+    background: #3a80d2;
+  }
+  
+  .verify-button:disabled {
+    background: #b4b4b4;
+    cursor: not-allowed;
+  }
+  
+  .resend-section {
+    margin: 16px 0;
+    font-size: 14px;
+  }
+  
+  .resend-button {
+    background: none;
+    border: none;
+    color: #4a90e2;
+    cursor: pointer;
+    font-size: 14px;
+    padding: 5px;
+    text-decoration: underline;
+  }
+  
+  .countdown {
+    color: #888;
+    margin: 0;
+  }
+  
+  .cancel-button {
+    background: none;
+    border: none;
+    color: #888;
+    cursor: pointer;
+    font-size: 14px;
+    margin-top: 10px;
+    text-decoration: underline;
+  }
+  
+  /* Media queries for responsive design */
+  @media (max-width: 480px) {
+    .pin-verification-card {
+      width: 80%;
+      padding: 30px 20px;
+    }
+  }

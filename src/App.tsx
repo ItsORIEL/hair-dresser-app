@@ -2,9 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { LoginPage } from './components/LoginPage';
 import { ClientPage } from './components/ClientPage';
 import { AdminDashboard } from './components/AdminDashboard';
+import { PinVerificationPage } from './components/PinVerificationPage';
 import './App.css';
 
-// Import Firebase service
+// Import Firebase services
 import { 
   getReservations, 
   createReservation, 
@@ -14,6 +15,16 @@ import {
   Reservation
 } from './services/firebase-service';
 
+// Import Firebase Authentication services
+import {
+  initializeRecaptcha,
+  sendVerificationCode,
+  verifyCode,
+  getCurrentUser,
+  onAuthStateChanged
+} from './services/firebase-auth-service';
+import { RecaptchaVerifier } from 'firebase/auth';
+
 // Utility function to get current date in format YYYY-MM-DD
 const getCurrentDate = (offset: number = 0) => {
   const today = new Date();
@@ -22,12 +33,38 @@ const getCurrentDate = (offset: number = 0) => {
 };
 
 const App: React.FC = () => {
-  const [page, setPage] = useState<'login' | 'client' | 'admin'>('login');
+  // Page states: 'login', 'verification', 'client', 'admin'
+  const [page, setPage] = useState<'login' | 'verification' | 'client' | 'admin'>('login');
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [selectedDate, setSelectedDate] = useState<string>(getCurrentDate());
   const [loading, setLoading] = useState<boolean>(false);
+  const [recaptchaVerifier, setRecaptchaVerifier] = useState<RecaptchaVerifier | null>(null);
+  const [verificationInProgress, setVerificationInProgress] = useState<boolean>(false);
+
+  // Initialize Firebase Auth listener
+  useEffect(() => {
+    const unsubscribeAuth = onAuthStateChanged((user) => {
+      // If we have a verified user, we can allow them to proceed
+      if (user) {
+        console.log("User is signed in:", user.phoneNumber);
+        // Automatically move to client page if verification is complete
+        if (page === 'verification') {
+          navigateAfterLogin();
+        }
+      } else {
+        console.log("User is signed out");
+        // If user signs out, redirect to login
+        if (page !== 'login') {
+          setPage('login');
+        }
+      }
+    });
+
+    // Clean up the listener
+    return () => unsubscribeAuth();
+  }, [page]);
 
   // Subscribe to reservations from Firebase
   useEffect(() => {
@@ -38,6 +75,26 @@ const App: React.FC = () => {
     // Clean up the listener when component unmounts
     return () => unsubscribe();
   }, []);
+
+  // Initialize reCAPTCHA when component mounts
+  useEffect(() => {
+    const initRecaptcha = () => {
+      // Make sure we have a recaptcha-container in the DOM
+      if (document.getElementById('recaptcha-container')) {
+        try {
+          const recaptcha = initializeRecaptcha('recaptcha-container');
+          setRecaptchaVerifier(recaptcha);
+        } catch (error) {
+          console.error("Error initializing reCAPTCHA:", error);
+        }
+      }
+    };
+
+    // Initialize when on login page
+    if (page === 'login') {
+      initRecaptcha();
+    }
+  }, [page]);
 
   const generateNextFiveDays = () => {
     const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -52,17 +109,81 @@ const App: React.FC = () => {
     });
   };
 
+  // Start phone verification
+  const startPhoneVerification = async (phoneNumber: string): Promise<boolean> => {
+    if (!recaptchaVerifier) {
+      console.error("reCAPTCHA not initialized");
+      return false;
+    }
+
+    setLoading(true);
+    try {
+      // Send verification code
+      const success = await sendVerificationCode(phoneNumber, recaptchaVerifier);
+      
+      if (success) {
+        // Move to verification page
+        setVerificationInProgress(true);
+        setPage('verification');
+      }
+      
+      return success;
+    } catch (error) {
+      console.error("Error starting verification:", error);
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Verify the SMS code
+  const handleVerifyCode = async (code: string): Promise<boolean> => {
+    try {
+      const isVerified = await verifyCode(code);
+      return isVerified;
+    } catch (error) {
+      console.error("Error verifying code:", error);
+      return false;
+    }
+  };
+
+  // After successful phone verification
+  const handleVerificationComplete = () => {
+    setVerificationInProgress(false);
+    navigateAfterLogin();
+  };
+
+  // Resend verification code
+  const handleResendCode = async () => {
+    if (recaptchaVerifier) {
+      await sendVerificationCode(phone, recaptchaVerifier);
+    }
+  };
+
+  // Cancel verification and go back to login
+  const handleCancelVerification = () => {
+    setVerificationInProgress(false);
+    setPage('login');
+  };
+
+  // Navigate to appropriate page after login
+  const navigateAfterLogin = () => {
+    if (name.toLowerCase() === 'oriel' && phone === '+9721234') {
+      setPage('admin');
+    } else {
+      setPage('client');
+    }
+  };
+
   const handleLogin = () => {
     if (!name.trim() || !phone.trim()) {
       alert('Please enter both name and phone number');
       return;
     }
 
-    if (name.toLowerCase() === 'oriel' && phone === '1234') {
-      setPage('admin');
-    } else {
-      setPage('client');
-    }
+    // This function is no longer directly called from the login page
+    // We now use startPhoneVerification first
+    navigateAfterLogin();
   };
 
   const handleReservation = async (time: string) => {
@@ -156,76 +277,4 @@ const App: React.FC = () => {
   };
 
   const isReservedByCurrentUser = (time: string) => {
-    const userReservation = getUserReservationForSelectedDate();
-    return userReservation?.time === time;
-  };
-
-  const isReservedByOthers = (time: string) => {
-    return reservations.some(
-      res => res.time === time && 
-             res.date === selectedDate && 
-             (res.name !== name || res.phone !== phone)
-    );
-  };
-
-  return (
-    <div>
-      {loading && (
-        <div style={{ 
-          position: 'fixed', 
-          top: 0, 
-          left: 0, 
-          right: 0, 
-          bottom: 0, 
-          backgroundColor: 'rgba(0,0,0,0.5)', 
-          display: 'flex', 
-          justifyContent: 'center', 
-          alignItems: 'center',
-          zIndex: 1000
-        }}>
-          <div style={{ 
-            padding: '20px', 
-            backgroundColor: 'white', 
-            borderRadius: '8px',
-            boxShadow: '0 2px 10px rgba(0,0,0,0.2)'
-          }}>
-            Loading...
-          </div>
-        </div>
-      )}
-
-      {page === 'login' && (
-        <LoginPage
-          name={name}
-          phone={phone}
-          setName={setName}
-          setPhone={setPhone}
-          handleLogin={handleLogin}
-        />
-      )}
-      {page === 'client' && (
-        <ClientPage
-          availableTimes={availableTimes}
-          userReservation={getUserReservationForSelectedDate()}
-          handleReservation={handleReservation}
-          cancelReservation={handleCancelUserReservation}
-          goBack={goBack}
-          isReservedByCurrentUser={isReservedByCurrentUser}
-          isReservedByOthers={isReservedByOthers}
-          selectedDate={selectedDate}
-          setSelectedDate={setSelectedDate}
-          generateNextFiveDays={generateNextFiveDays}
-        />
-      )}
-      {page === 'admin' && (
-        <AdminDashboard 
-          reservations={reservations} 
-          goBack={goBack} 
-          onDeleteReservation={handleDeleteReservation}
-        />
-      )}
-    </div>
-  );
-};
-
-export default App;
+    const
