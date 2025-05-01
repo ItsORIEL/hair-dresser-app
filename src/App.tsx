@@ -68,6 +68,34 @@ const App: React.FC = () => {
   const handleReservation = async (time: string) => {
     setLoading(true);
     try {
+      // Check if this is a past time slot on the current date
+      const today = new Date().toISOString().split('T')[0];
+      
+      if (selectedDate === today) {
+        const currentTime = new Date();
+        const timeMatch = time.match(/(\d+):(\d+)\s*([AP]M)/i);
+        
+        if (timeMatch) {
+          let hours = parseInt(timeMatch[1]);
+          const minutes = parseInt(timeMatch[2]);
+          const ampm = timeMatch[3].toUpperCase();
+          
+          // Convert to 24-hour format
+          if (ampm === 'PM' && hours < 12) hours += 12;
+          if (ampm === 'AM' && hours === 12) hours = 0;
+          
+          // Create a Date object for the appointment time
+          const appointmentTime = new Date();
+          appointmentTime.setHours(hours, minutes, 0, 0);
+          
+          // If appointment time is in the past, prevent booking
+          if (appointmentTime <= currentTime) {
+            alert('Cannot book appointments in the past. Please select a future time slot.');
+            return;
+          }
+        }
+      }
+
       // Check if this time slot is available
       const isAvailable = await isTimeSlotAvailable(
         selectedDate, 
