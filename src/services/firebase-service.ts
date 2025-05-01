@@ -64,6 +64,34 @@ export const isTimeSlotAvailable = async (date: string, time: string, excludeUse
   const reservationsRef = ref(database, 'reservations');
   const snapshot = await get(reservationsRef);
   
+  // Check if this is a past time on the current date
+  const currentDate = new Date().toISOString().split('T')[0]; // Today's date in YYYY-MM-DD
+  
+  if (date === currentDate) {
+    // Convert time string (e.g., "9:00 AM") to comparable value
+    const currentTime = new Date();
+    const timeStr = time.match(/(\d+):(\d+)\s*([AP]M)/i);
+    
+    if (timeStr) {
+      let hours = parseInt(timeStr[1]);
+      const minutes = parseInt(timeStr[2]);
+      const ampm = timeStr[3].toUpperCase();
+      
+      // Convert to 24-hour format
+      if (ampm === 'PM' && hours < 12) hours += 12;
+      if (ampm === 'AM' && hours === 12) hours = 0;
+      
+      // Create a Date object for the appointment time
+      const appointmentTime = new Date();
+      appointmentTime.setHours(hours, minutes, 0, 0);
+      
+      // If appointment time is in the past or current time, it's not available
+      if (appointmentTime <= currentTime) {
+        return false;
+      }
+    }
+  }
+  
   if (!snapshot.exists()) {
     return true;
   }

@@ -73,6 +73,35 @@ export const ClientPage: React.FC<ClientPageProps> = ({
     }
   };
 
+  // Check if time is in the past for the current date
+  const isTimeInPast = (time: string): boolean => {
+    // Only apply this check for the current date
+    const today = new Date().toISOString().split('T')[0];
+    if (selectedDate !== today) return false;
+
+    const currentTime = new Date();
+    const timeMatch = time.match(/(\d+):(\d+)\s*([AP]M)/i);
+    
+    if (timeMatch) {
+      let hours = parseInt(timeMatch[1]);
+      const minutes = parseInt(timeMatch[2]);
+      const ampm = timeMatch[3].toUpperCase();
+      
+      // Convert to 24-hour format
+      if (ampm === 'PM' && hours < 12) hours += 12;
+      if (ampm === 'AM' && hours === 12) hours = 0;
+      
+      // Create a Date object for the appointment time
+      const appointmentTime = new Date();
+      appointmentTime.setHours(hours, minutes, 0, 0);
+      
+      // Return true if the time is in the past
+      return appointmentTime <= currentTime;
+    }
+    
+    return false;
+  };
+
   return (
     <div className="appointment-container">
       <div className="header">
@@ -132,8 +161,9 @@ export const ClientPage: React.FC<ClientPageProps> = ({
         <div className="time-grid">
           {availableTimes.map((time, index) => {
             const yourReservation = isReservedByCurrentUser(time);
-            const unavailable = isReservedByOthers(time);
+            const unavailable = isReservedByOthers(time) || isTimeInPast(time);
             const isSelected = selectedTime === time && !userReservation;
+            const isPastTime = isTimeInPast(time);
             
             return (
               <button
@@ -142,7 +172,7 @@ export const ClientPage: React.FC<ClientPageProps> = ({
                 onClick={() => !unavailable && handleTimeSelection(time)}
                 disabled={unavailable}
               >
-                {yourReservation ? "Your Appointment" : unavailable ? "Unavailable" : time}
+                {yourReservation ? "Your Appointment" : isPastTime ? "Past Time" : unavailable ? "Unavailable" : time}
               </button>
             );
           })}
