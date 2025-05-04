@@ -58,16 +58,34 @@ const App: React.FC = () => {
       return;
     }
 
+    // For admin login check, we need to compare without the prefix
     if (name.toLowerCase() === 'oriel' && phone === '1234') {
       setPage('admin');
     } else {
       setPage('client');
     }
   };
+  
+  // Helper function to format the phone with prefix for Firebase
+  const formatPhoneWithPrefix = (phoneNumber: string) => {
+    // Remove any non-digit characters
+    const digitsOnly = phoneNumber.replace(/\D/g, '');
+    
+    // If it already starts with the country code, don't add it again
+    if (digitsOnly.startsWith('972')) {
+      return `+${digitsOnly}`;
+    }
+    
+    // Otherwise, add the country code
+    return `+972${digitsOnly}`;
+  };
 
   const handleReservation = async (time: string) => {
     setLoading(true);
     try {
+      // Format phone number with country code
+      const formattedPhone = formatPhoneWithPrefix(phone);
+      
       // Check if this is a past time slot on the current date
       const today = new Date().toISOString().split('T')[0];
       
@@ -100,7 +118,7 @@ const App: React.FC = () => {
       const isAvailable = await isTimeSlotAvailable(
         selectedDate, 
         time, 
-        { name, phone } // Exclude the current user's existing reservation
+        { name, phone: formattedPhone } // Exclude the current user's existing reservation
       );
 
       if (!isAvailable) {
@@ -109,7 +127,7 @@ const App: React.FC = () => {
       }
 
       // Check if user already has a reservation for this date
-      const existingReservation = await getUserReservationForDate(name, phone, selectedDate);
+      const existingReservation = await getUserReservationForDate(name, formattedPhone, selectedDate);
       
       if (existingReservation) {
         // Delete the old reservation
@@ -119,7 +137,7 @@ const App: React.FC = () => {
       // Create new reservation
       const newReservation: Reservation = {
         name,
-        phone,
+        phone: formattedPhone, // Use the formatted phone number
         time,
         date: selectedDate
       };
@@ -146,8 +164,11 @@ const App: React.FC = () => {
   const handleCancelUserReservation = async () => {
     setLoading(true);
     try {
+      // Format phone number with country code
+      const formattedPhone = formatPhoneWithPrefix(phone);
+      
       // Find user's reservation for the current date
-      const userReservation = await getUserReservationForDate(name, phone, selectedDate);
+      const userReservation = await getUserReservationForDate(name, formattedPhone, selectedDate);
       
       if (userReservation && userReservation.id) {
         await deleteReservation(userReservation.id);
@@ -176,9 +197,10 @@ const App: React.FC = () => {
   ];
 
   const getUserReservationForSelectedDate = () => {
+    const formattedPhone = formatPhoneWithPrefix(phone);
     return reservations.find(
       res => res.name === name && 
-             res.phone === phone && 
+             res.phone === formattedPhone && 
              res.date === selectedDate
     ) || null;
   };
@@ -189,10 +211,11 @@ const App: React.FC = () => {
   };
 
   const isReservedByOthers = (time: string) => {
+    const formattedPhone = formatPhoneWithPrefix(phone);
     return reservations.some(
       res => res.time === time && 
              res.date === selectedDate && 
-             (res.name !== name || res.phone !== phone)
+             (res.name !== name || res.phone !== formattedPhone)
     );
   };
 

@@ -16,6 +16,28 @@ export const LoginPage: React.FC<LoginPageProps> = ({
   setPhone,
   handleLogin,
 }) => {
+  // Function to format the phone number input
+  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    // Remove any non-digit characters and ensure it doesn't have the prefix already
+    let value = e.target.value.replace(/\D/g, '');
+    
+    // Remove leading 0 if present (Israeli numbers typically start with 0)
+    if (value.startsWith('0')) {
+      value = value.substring(1);
+    }
+    
+    // Set the phone number without the prefix in the state
+    // The actual value with prefix will be constructed when needed
+    setPhone(value);
+  };
+
+  // Handle Enter key press
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleLogin();
+    }
+  };
+
   return (
     <div className="login-container">
       {/* Optional decorative background circles */}
@@ -31,15 +53,19 @@ export const LoginPage: React.FC<LoginPageProps> = ({
             placeholder="Enter Username"
             value={name}
             onChange={(e) => setName(e.target.value)}
+            onKeyPress={handleKeyPress}
           />
         </div>
         
-        <div className="input-wrapper">
+        <div className="input-wrapper phone-input-wrapper">
+          <div className="phone-prefix">+972</div>
           <input
-            type="text"
-            placeholder="Enter Phone Number"
+            type="tel"
+            className="phone-input"
+            placeholder="5XXXXXXXX"
             value={phone}
-            onChange={(e) => setPhone(e.target.value)}
+            onChange={handlePhoneChange}
+            onKeyPress={handleKeyPress}
           />
         </div>
         

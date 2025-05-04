@@ -8,6 +8,59 @@
     justify-content: center;
     overflow: hidden;
   }
+
+  /* Input fields styling */
+.input-wrapper input {
+  width: 92%;
+  padding: 12px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  font-size: 14px;
+  outline: none;
+  transition: border 0.2s;
+}
+
+.input-wrapper input:focus {
+  border-color: #ff6781;
+}
+
+/* Phone input with prefix styling */
+.phone-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  background-color: white;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  width: 100%;
+  transition: border 0.2s;
+}
+
+.phone-input-wrapper:focus-within {
+  border-color: #ff6781;
+}
+
+.phone-prefix {
+  padding: 12px 8px 12px 12px;
+  font-size: 14px;
+  color: #666;
+  border-right: 1px solid #ddd;
+  background-color: #f9f9f9;
+  border-radius: 8px 0 0 8px;
+}
+
+.phone-input {
+  flex: 1;
+  border: none !important;
+  border-radius: 0 8px 8px 0 !important;
+  padding-left: 8px !important;
+  width: auto !important;
+}
+
+.phone-input:focus {
+  border-color: transparent !important;
+  box-shadow: none;
+}
   
   /* Optional background circles for a soft, playful look */
   .bg-circle1,
