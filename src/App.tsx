@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { LoginPage } from './components/LoginPage';
 import { ClientPage } from './components/ClientPage';
 import { AdminDashboard } from './components/AdminDashboard';
-import './App.css';
+import './App.css'; // Global styles
 import {
   getReservations,
   createReservation,
@@ -13,13 +13,14 @@ import {
   Reservation,
   saveUserPhoneNumber,
   getUserPhoneNumber,
+  getLatestBarberNews,
+  BarberNews,
   signOut,
-  onAuthStateChanged as firebaseOnAuthStateChanged, // Renamed to avoid conflict
+  onAuthStateChanged as firebaseOnAuthStateChanged,
 } from './services/firebase-service';
-import { User } from 'firebase/auth'; // Firebase User type
+import { User } from 'firebase/auth';
 
-// Admin UID - replace with Admin actual UID after he signs in once
-const ADMIN_UID = 'X6IZj1LMNKfZIZlwQud23U5mzhC3'; // IMPORTANT!
+const ADMIN_UID = 'X6IZj1LMNKfZIZlwQud23U5mzhC3'; // <<< IMPORTANT: SET THIS
 
 const getCurrentDate = (offset: number = 0) => {
   const today = new Date();
@@ -27,60 +28,59 @@ const getCurrentDate = (offset: number = 0) => {
   return today.toISOString().split('T')[0];
 };
 
-// Component to ask for phone number
 interface PhoneInputProps {
   onSubmit: (phone: string) => void;
-  onCancel?: () => void; // Optional: if user can skip/cancel
+  onCancel?: () => void;
   currentPhone?: string;
   isUpdating?: boolean;
 }
 
 const PhoneInputModal: React.FC<PhoneInputProps> = ({ onSubmit, onCancel, currentPhone, isUpdating }) => {
-  const [phoneInput, setPhoneInput] = useState(currentPhone || '');
+  const [phoneInput, setPhoneInput] = useState(currentPhone?.startsWith('0') ? currentPhone.substring(1) : currentPhone || '');
   const [error, setError] = useState('');
 
   const handleSubmit = () => {
-    // Basic validation (you can make this more robust)
-    const israeliPhoneRegex = /^(05\d{8}|5\d{8})$/; // e.g., 0501234567 or 501234567
-    const cleanedPhone = phoneInput.replace(/\D/g, ''); // Remove non-digits
+    const israeliPhoneRegex = /^(05\d{8}|5\d{8})$/;
+    let cleanedPhone = phoneInput.replace(/\D/g, '');
+    if (cleanedPhone.startsWith('972') && cleanedPhone.length > 9) {
+        cleanedPhone = cleanedPhone.substring(3);
+    }
 
     if (!israeliPhoneRegex.test(cleanedPhone)) {
-      setError('Please enter a valid Israeli mobile number (e.g., 0501234567 or 501234567).');
+      setError('Please enter a valid Israeli mobile number (e.g., 501234567).');
       return;
     }
-    // Normalize to start with '05' if it starts with '5'
-    const normalizedPhone = cleanedPhone.startsWith('5') && cleanedPhone.length === 9 ? '0' + cleanedPhone : cleanedPhone;
-    onSubmit(normalizedPhone);
+    const normalizedPhoneForDB = cleanedPhone.startsWith('5') && cleanedPhone.length === 9 ? '0' + cleanedPhone : cleanedPhone;
+    onSubmit(normalizedPhoneForDB);
+    setError('');
   };
 
   return (
-    <div style={{
-      position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-      backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex',
-      justifyContent: 'center', alignItems: 'center', zIndex: 2000
-    }}>
-      <div style={{ padding: '30px', backgroundColor: 'white', borderRadius: '10px', textAlign: 'center', boxShadow: '0 5px 15px rgba(0,0,0,0.3)' }}>
+    <div className="modal-overlay">
+      <div className="modal-content phone-input-modal-content">
         <h3>{isUpdating ? "Update Your Phone Number" : "Please Enter Your Phone Number"}</h3>
-        <p style={{fontSize: '0.9em', color: '#666', marginBottom: '15px'}}>This will be used for your reservations.</p>
-        <div style={{ display: 'flex', alignItems: 'center', border: '1px solid #ccc', borderRadius: '5px', paddingLeft: '10px', marginBottom: '10px' }}>
-          <span style={{ color: '#888' }}>+972</span>
+        <p className="modal-subtitle">This will be used for your reservations.</p>
+        <div className="phone-input-container-modal">
+          <span className="phone-prefix-modal">+972</span>
           <input
             type="tel"
-            value={phoneInput.startsWith('0') ? phoneInput.substring(1) : phoneInput} // Display without leading 0 if present
+            value={phoneInput}
             onChange={(e) => setPhoneInput(e.target.value.replace(/\D/g, ''))}
             placeholder="5X XXX XXXX"
-            style={{ border: 'none', padding: '10px', fontSize: '1em', outline: 'none', flexGrow: 1}}
+            className="phone-actual-input-modal"
           />
         </div>
-        {error && <p style={{ color: 'red', fontSize: '0.8em', marginBottom: '10px' }}>{error}</p>}
-        <button onClick={handleSubmit} style={{ padding: '10px 20px', backgroundColor: '#4a90e2', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', marginRight: '10px' }}>
-          {isUpdating ? "Update" : "Save Phone Number"}
-        </button>
-        {onCancel && (
-          <button onClick={onCancel} style={{ padding: '10px 20px', backgroundColor: '#ccc', color: 'black', border: 'none', borderRadius: '5px', cursor: 'pointer' }}>
-            Cancel
-          </button>
-        )}
+        {error && <p className="modal-error">{error}</p>}
+        <div className="modal-actions">
+            <button onClick={handleSubmit} className="modal-button primary">
+            {isUpdating ? "Update" : "Save Phone Number"}
+            </button>
+            {onCancel && (
+            <button onClick={onCancel} className="modal-button secondary">
+                Cancel
+            </button>
+            )}
+        </div>
       </div>
     </div>
   );
@@ -92,56 +92,58 @@ const App: React.FC = () => {
   const [userPhone, setUserPhone] = useState<string | undefined>(undefined);
   const [page, setPage] = useState<'login' | 'client' | 'admin' | 'get_phone'>('login');
   const [reservations, setReservations] = useState<Reservation[]>([]);
+  const [latestNews, setLatestNews] = useState<BarberNews | null>(null);
   const [selectedDate, setSelectedDate] = useState<string>(getCurrentDate());
-  const [loading, setLoading] = useState<boolean>(true); // Start true for auth check
+  const [loading, setLoading] = useState<boolean>(true);
   const [showPhoneUpdateModal, setShowPhoneUpdateModal] = useState(false);
 
   useEffect(() => {
     setLoading(true);
-    const unsubscribeAuth = firebaseOnAuthStateChanged(async (user) => {
-      if (user) {
-        setCurrentUser(user);
-        const phone = await getUserPhoneNumber(user.uid);
+    const unsubscribeAuth = firebaseOnAuthStateChanged(async (userAuth) => { // Renamed param to userAuth to avoid conflict
+      if (userAuth) {
+        setCurrentUser(userAuth); // This sets the state, triggering dependent logic
+        const phone = await getUserPhoneNumber(userAuth.uid);
         setUserPhone(phone);
-        if (phone) {
-          setPage(user.uid === ADMIN_UID ? 'admin' : 'client');
+        if (userAuth.uid === ADMIN_UID) {
+            setPage('admin');
+        } else if (phone) {
+            setPage('client');
         } else {
-          setPage('get_phone'); // New user, needs to provide phone
+            setPage('get_phone');
         }
       } else {
         setCurrentUser(null);
         setUserPhone(undefined);
         setPage('login');
+        setReservations([]);
+        setLatestNews(null);
       }
       setLoading(false);
     });
 
-    // Only subscribe to reservations if a user is logged in (or for admin)
     let unsubscribeReservations: (() => void) | null = null;
-    if (currentUser || page === 'admin') { // Simplified: always get all reservations if admin potentially
-        unsubscribeReservations = getReservations((fetchedReservations) => {
+    if (currentUser) {
+      unsubscribeReservations = getReservations((fetchedReservations) => {
         setReservations(fetchedReservations);
       });
     }
 
+    const unsubscribeNews = getLatestBarberNews((news) => {
+      setLatestNews(news);
+    });
 
     return () => {
       unsubscribeAuth();
       if (unsubscribeReservations) unsubscribeReservations();
+      unsubscribeNews();
     };
-  }, [currentUser]); // Re-run when currentUser changes
+  }, [currentUser]); // useEffect depends on currentUser
 
-  const handleAuthSuccess = async (user: User) => {
-    setLoading(true);
+  // Corrected: 'user' param is passed to setCurrentUser which triggers useEffect
+  const handleAuthSuccess = (user: User) => {
     setCurrentUser(user);
-    const phone = await getUserPhoneNumber(user.uid);
-    setUserPhone(phone);
-    if (phone) {
-      setPage(user.uid === ADMIN_UID ? 'admin' : 'client');
-    } else {
-      setPage('get_phone');
-    }
-    setLoading(false);
+    // The useEffect listening to `currentUser` will handle fetching phone,
+    // setting page, and managing loading state.
   };
 
   const handlePhoneSubmit = async (phone: string) => {
@@ -149,22 +151,22 @@ const App: React.FC = () => {
       setLoading(true);
       await saveUserPhoneNumber(currentUser.uid, phone, currentUser.displayName || "User", currentUser.email);
       setUserPhone(phone);
-      setPage(currentUser.uid === ADMIN_UID ? 'admin' : 'client');
-      setShowPhoneUpdateModal(false); // Close modal if it was open for update
+      if (currentUser.uid === ADMIN_UID) {
+          setPage('admin');
+      } else {
+          setPage('client');
+      }
+      setShowPhoneUpdateModal(false);
       setLoading(false);
     }
   };
 
   const handleSignOut = async () => {
-    setLoading(true);
+    setLoading(true); // Indicate an action is happening
     await signOut();
-    setCurrentUser(null);
-    setUserPhone(undefined);
-    setPage('login');
-    setReservations([]); // Clear reservations on sign out
-    setLoading(false);
+    // The onAuthStateChanged listener in useEffect will handle state cleanup (currentUser, page, etc.)
+    // and setting loading to false.
   };
-
 
   const generateNextFiveDays = () => {
     const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -200,38 +202,26 @@ const App: React.FC = () => {
           appointmentTime.setHours(hours, minutes, 0, 0);
           if (appointmentTime <= currentTime) {
             alert('Cannot book appointments in the past.');
-            setLoading(false);
-            return;
+            setLoading(false); return;
           }
         }
       }
-
       const isAvailable = await isTimeSlotAvailable(selectedDate, time, currentUser.uid);
       if (!isAvailable) {
          const userExistingReservationOnSlot = reservations.find(
-            res => res.date === selectedDate &&
-                   res.time === time &&
-                   res.userId === currentUser.uid
-        );
+            res => res.date === selectedDate && res.time === time && res.userId === currentUser.uid);
         if (!userExistingReservationOnSlot) {
             alert('This time slot is booked. Please select another.');
-            setLoading(false);
-            return;
+            setLoading(false); return;
         }
       }
-
       const existingReservation = await getUserReservationForDate(currentUser.uid, selectedDate);
       if (existingReservation && existingReservation.id) {
         await deleteReservation(existingReservation.id);
       }
-
       const newReservationData: Omit<Reservation, 'id'> = {
         name: currentUser.displayName || 'User',
-        phone: userPhone,
-        time,
-        date: selectedDate,
-        userId: currentUser.uid
-      };
+        phone: userPhone, time, date: selectedDate, userId: currentUser.uid };
       await createReservation(newReservationData);
       alert(`Reservation confirmed for ${selectedDate} at ${time}`);
     } catch (error) {
@@ -244,14 +234,9 @@ const App: React.FC = () => {
 
   const handleDeleteReservation = async (id: string) => {
     setLoading(true);
-    try {
-      await deleteReservation(id);
-    } catch (error) {
-      console.error("Error deleting reservation:", error);
-      alert('Failed to delete reservation.');
-    } finally {
-      setLoading(false);
-    }
+    try { await deleteReservation(id); }
+    catch (error) { console.error("Error deleting reservation:", error); alert('Failed to delete reservation.');}
+    finally { setLoading(false); }
   };
 
   const handleCancelUserReservation = async () => {
@@ -265,47 +250,31 @@ const App: React.FC = () => {
       } else {
         alert('No appointment found to cancel for the selected date.');
       }
-    } catch (error) {
-      console.error("Error cancelling reservation:", error);
-      alert('Failed to cancel reservation.');
-    } finally {
-      setLoading(false);
-    }
+    } catch (error) { console.error("Error cancelling reservation:", error); alert('Failed to cancel reservation.');}
+    finally { setLoading(false); }
   };
 
   const availableTimes = [
-    '9:00 AM', '9:30 AM', '10:00 AM', '10:30 AM',
-    '11:00 AM', '11:30 AM', '12:00 PM', '12:30 PM',
-    '1:00 PM', '1:30 PM', '2:00 PM', '2:30 PM',
-    '3:00 PM', '3:30 PM', '4:00 PM', '4:30 PM',
-    '5:00 PM', '5:30 PM'
-  ];
+    '9:00 AM', '9:30 AM', '10:00 AM', '10:30 AM', '11:00 AM', '11:30 AM', '12:00 PM', '12:30 PM',
+    '1:00 PM', '1:30 PM', '2:00 PM', '2:30 PM', '3:00 PM', '3:30 PM', '4:00 PM', '4:30 PM',
+    '5:00 PM', '5:30 PM' ];
 
   const getUserReservationForSelectedDate = () => {
     if (!currentUser) return null;
-    return reservations.find(
-      res => res.userId === currentUser.uid && res.date === selectedDate
-    ) || null;
+    return reservations.find(res => res.userId === currentUser.uid && res.date === selectedDate) || null;
   };
-
   const isReservedByCurrentUser = (time: string) => {
     const userReservation = getUserReservationForSelectedDate();
     return userReservation?.time === time;
   };
-
   const isReservedByOthers = (time: string) => {
-    if (!currentUser) { // If no user, consider all bookings by others
-        return reservations.some(res => res.time === time && res.date === selectedDate);
-    }
-    return reservations.some(
-      res => res.time === time && res.date === selectedDate && res.userId !== currentUser.uid
-    );
+    if (!currentUser) { return reservations.some(res => res.time === time && res.date === selectedDate); }
+    return reservations.some(res => res.time === time && res.date === selectedDate && res.userId !== currentUser.uid);
   };
-
 
   if (loading) {
     return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', fontSize: '1.5em' }}>
+      <div className="app-loading-spinner">
         Loading Application...
       </div>
     );
@@ -313,46 +282,29 @@ const App: React.FC = () => {
 
   return (
     <div>
-      {page === 'login' && (
-        <LoginPage
-          onAuthSuccess={handleAuthSuccess}
-          setLoadingApp={setLoading}
-        />
-      )}
-      {page === 'get_phone' && currentUser && (
-        <PhoneInputModal onSubmit={handlePhoneSubmit} />
-      )}
+      {page === 'login' && ( <LoginPage onAuthSuccess={handleAuthSuccess} setLoadingApp={setLoading} /> )}
+      {page === 'get_phone' && currentUser && ( <PhoneInputModal onSubmit={handlePhoneSubmit} /> )}
       {showPhoneUpdateModal && currentUser && (
-          <PhoneInputModal
-            onSubmit={handlePhoneSubmit}
-            onCancel={() => setShowPhoneUpdateModal(false)}
-            currentPhone={userPhone}
-            isUpdating={true}
-          />
-      )}
+          <PhoneInputModal onSubmit={handlePhoneSubmit} onCancel={() => setShowPhoneUpdateModal(false)} currentPhone={userPhone} isUpdating={true} /> )}
       {page === 'client' && currentUser && userPhone && (
         <ClientPage
+          latestBarberNews={latestNews}
+          userName={currentUser.displayName || "Client"}
           availableTimes={availableTimes}
           userReservation={getUserReservationForSelectedDate()}
           handleReservation={handleReservation}
           cancelReservation={handleCancelUserReservation}
-          goBack={handleSignOut} // "Back" from client page now means sign out
+          goBack={handleSignOut}
           isReservedByCurrentUser={isReservedByCurrentUser}
           isReservedByOthers={isReservedByOthers}
           selectedDate={selectedDate}
           setSelectedDate={setSelectedDate}
           generateNextFiveDays={generateNextFiveDays}
-          onUpdatePhoneNumber={() => setShowPhoneUpdateModal(true)} // New prop
-          userName={currentUser.displayName || "Client"}
+          onUpdatePhoneNumber={() => setShowPhoneUpdateModal(true)}
         />
       )}
-      {page === 'admin' && currentUser && ( // Admin also needs to be authenticated
-        <AdminDashboard
-          reservations={reservations}
-          goBack={handleSignOut} // "Back" from admin page now means sign out
-          onDeleteReservation={handleDeleteReservation}
-        />
-      )}
+      {page === 'admin' && currentUser && ( // Admin also needs to be authenticated to reach here
+        <AdminDashboard reservations={reservations} goBack={handleSignOut} onDeleteReservation={handleDeleteReservation} /> )}
     </div>
   );
 };

@@ -1,10 +1,12 @@
+/* src/App.css */
 #root {
   max-width: 1280px;
   margin: 0 auto;
+  padding: 2rem;
   text-align: center;
 }
 
-.card {
+.card { /* This is a very generic class, might be used elsewhere or can be removed if not */
   padding: 2em;
 }
 
@@ -12,9 +14,133 @@
   color: #888;
 }
 
-
-.just-a-giant-text {
+.just-a-giant-text { /* This class was in your original App.css */
   font-size: 6rem;
   font-family: 'Trebuchet MS', sans-serif;
   text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5); /* Subtle shadow */
+}
+
+/* Global App Loading Spinner */
+.app-loading-spinner {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  font-size: 1.5em;
+  color: var(--text-primary, #2c3e50);
+  background-color: var(--background-color, #f8f9fa);
+}
+
+
+/* Styles for PhoneInputModal */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0,0,0,0.6);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 2000; /* Ensure it's above other content */
+  padding: 15px; /* Add padding for small screens */
+}
+
+.modal-content.phone-input-modal-content { /* Add specificity */
+  padding: 30px;
+  background-color: white;
+  border-radius: 10px;
+  text-align: center;
+  box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+  min-width: 300px;
+  max-width: 450px; /* Max width for the modal */
+  width: 100%; /* Ensure it doesn't overflow on small screens */
+  box-sizing: border-box;
+}
+
+.modal-content h3 {
+  margin-top: 0;
+  margin-bottom: 10px;
+  font-size: 1.25em;
+  color: var(--text-primary, #2c3e50);
+}
+
+.modal-subtitle {
+  font-size: 0.9em;
+  color: #666;
+  margin-bottom: 20px; /* Increased margin */
+}
+
+.phone-input-container-modal {
+  display: flex;
+  align-items: center;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  padding-left: 10px;
+  margin-bottom: 15px; /* Increased margin */
+  background-color: white; /* Ensure input area is white */
+}
+.phone-input-container-modal:focus-within {
+  border-color: var(--primary-color, #ff3366);
+  box-shadow: 0 0 0 2px rgba(255, 51, 102, 0.2);
+}
+
+
+.phone-prefix-modal {
+  color: #888;
+  padding-right: 5px; /* Space between prefix and input */
+  font-size: 1em;
+}
+
+.phone-actual-input-modal {
+  border: none;
+  padding: 12px 10px; /* Good padding */
+  font-size: 1em;
+  outline: none;
+  flex-grow: 1;
+  border-radius: 0 8px 8px 0; /* Match container's right border radius */
+  width: 100%; /* Fill the container */
+}
+
+.modal-error {
+  color: red;
+  font-size: 0.8em;
+  margin-bottom: 15px;
+  min-height: 1.2em; /* Reserve space even if no error */
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: center; /* Center buttons */
+  gap: 15px; /* Space between buttons */
+  margin-top: 10px; /* Space above buttons */
+}
+
+.modal-button {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 30px;
+  cursor: pointer;
+  font-size: 0.9em;
+  font-weight: 500;
+  transition: background-color 0.2s, opacity 0.2s;
+}
+.modal-button.primary {
+  background-color: var(--secondary-color, #4a90e2);
+  color: white;
+}
+.modal-button.primary:hover {
+  background-color: #357ABD; /* Darker shade */
+}
+.modal-button.secondary {
+  background-color: #ccc;
+  color: black;
+}
+.modal-button.secondary:hover {
+  background-color: #b3b3b3;
+}
+.modal-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }

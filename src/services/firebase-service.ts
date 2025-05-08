@@ -1,10 +1,9 @@
 // src/services/firebase-service.ts
-import { getDatabase, ref, set, onValue, remove, push, get, DatabaseReference, query, orderByChild, equalTo } from "firebase/database";
+import { getDatabase, ref, set, onValue, remove, push, get, DatabaseReference, query, orderByChild, equalTo, limitToLast, serverTimestamp } from "firebase/database";
 import app, { authInstance } from "../firebase";
 
 import {
   GoogleAuthProvider,
-  // OAuthProvider, // REMOVED for Apple
   signInWithPopup,
   signOut as firebaseSignOut,
   User,
@@ -26,6 +25,13 @@ export interface UserProfile {
   displayName: string;
   email: string | null;
   phone?: string;
+}
+
+// NEW: BarberNews interface
+export interface BarberNews {
+  id?: string;
+  message: string;
+  timestamp: number | object; // Can be number or Firebase ServerValue.TIMESTAMP
 }
 
 const db = getDatabase(app);
@@ -134,9 +140,39 @@ export const getUserPhoneNumber = async (userId: string): Promise<string | undef
   return undefined;
 };
 
+// --- Barber News Functions ---
+export const postBarberNews = async (message: string): Promise<string> => {
+  const newsRef: DatabaseReference = ref(db, 'barberNews');
+  const newNewsItemRef = push(newsRef);
+  const newNewsId = newNewsItemRef.key || '';
+
+  const newsItem: Omit<BarberNews, 'id'> = { // Omit id as it's generated
+    message: message,
+    timestamp: serverTimestamp() // Use Firebase server timestamp for accuracy
+  };
+
+  await set(newNewsItemRef, newsItem);
+  return newNewsId;
+};
+
+export const getLatestBarberNews = (callback: (news: BarberNews | null) => void): () => void => {
+  const newsRef: DatabaseReference = ref(db, 'barberNews');
+  const latestNewsQuery = query(newsRef, orderByChild('timestamp'), limitToLast(1));
+
+  const unsubscribe = onValue(latestNewsQuery, (snapshot) => {
+    let latestNews: BarberNews | null = null;
+    if (snapshot.exists()) {
+      snapshot.forEach((childSnapshot) => {
+        latestNews = { ...childSnapshot.val(), id: childSnapshot.key } as BarberNews;
+      });
+    }
+    callback(latestNews);
+  });
+  return unsubscribe;
+};
+
 // --- Firebase Authentication Functions ---
 const googleProvider = new GoogleAuthProvider();
-// REMOVED: const appleProvider = new OAuthProvider('apple.com');
 
 export const signInWithGoogle = async (): Promise<User> => {
   try {
@@ -147,8 +183,6 @@ export const signInWithGoogle = async (): Promise<User> => {
     throw error;
   }
 };
-
-// REMOVED: signInWithApple function
 
 export const signOut = async (): Promise<void> => {
   try {

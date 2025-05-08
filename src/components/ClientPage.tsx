@@ -1,31 +1,27 @@
 // src/components/ClientPage.tsx
 import React, { useState, useEffect } from 'react';
 import './ClientPage.css';
-
-interface Reservation {
-  name: string;
-  phone: string;
-  time: string;
-  date: string;
-  userId?: string;
-}
+import { BarberNews, Reservation as ReservationType } from '../services/firebase-service';
 
 interface ClientPageProps {
+  latestBarberNews: BarberNews | null;
+  userName: string;
   availableTimes: string[];
-  userReservation: Reservation | null;
+  userReservation: ReservationType | null;
   handleReservation: (time: string) => void;
   cancelReservation: () => void;
-  goBack: () => void; // This will be signOut now
+  goBack: () => void;
   isReservedByCurrentUser: (time: string) => boolean;
   isReservedByOthers: (time: string) => boolean;
   selectedDate: string;
   setSelectedDate: (date: string) => void;
   generateNextFiveDays: () => { day: string, date: string, fullDate: string }[];
-  onUpdatePhoneNumber: () => void; // New prop
-  userName: string; // New prop
+  onUpdatePhoneNumber: () => void;
 }
 
 export const ClientPage: React.FC<ClientPageProps> = ({
+  latestBarberNews,
+  userName,
   availableTimes,
   userReservation,
   handleReservation,
@@ -37,7 +33,6 @@ export const ClientPage: React.FC<ClientPageProps> = ({
   setSelectedDate,
   generateNextFiveDays,
   onUpdatePhoneNumber,
-  userName
 }) => {
   const [dates, setDates] = useState<{ day: string, date: string, fullDate: string }[]>([]);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
@@ -45,34 +40,32 @@ export const ClientPage: React.FC<ClientPageProps> = ({
   useEffect(() => {
     const generatedDates = generateNextFiveDays();
     setDates(generatedDates);
-    setSelectedTime(null); // Reset selected time when date changes or component mounts with new props
-  }, [selectedDate, generateNextFiveDays]); // Re-run if selectedDate or generateNextFiveDays function identity changes
+    setSelectedTime(null);
+  }, [selectedDate, generateNextFiveDays]);
+
 
   const handleTimeSelection = (time: string) => {
-    // This function is called when a user clicks an available, non-past, non-other-booked time slot.
-    // It's not called if the slot is isReservedByCurrentUser.
-    if (userReservation) { // If user already has a reservation on this selectedDate
+    if (userReservation) {
       if (window.confirm(`Change your appointment from ${userReservation.time} to ${time}? Your previous booking on this date will be replaced.`)) {
-        handleReservation(time); // This will delete the old one and create a new one
-        setSelectedTime(null); // Reset selection after action
+        handleReservation(time);
+        setSelectedTime(null);
       }
-    } else { // If user does not have a reservation on this selectedDate yet
-      setSelectedTime(time); // Tentatively select this time
+    } else {
+      setSelectedTime(time);
     }
   };
 
-  const handleCancelClick = () => {
+  const handleCancelMainReservationClick = () => {
     if (userReservation && window.confirm('Are you sure you want to cancel your appointment?')) {
       cancelReservation();
-      setSelectedTime(null); // Reset selection after action
+      setSelectedTime(null);
     }
   };
 
   const handleConfirmClick = () => {
     if (selectedTime) {
-      // This case is for when a user *without* an existing reservation on selectedDate confirms a *new* slot
       handleReservation(selectedTime);
-      setSelectedTime(null); // Reset selection after action
+      setSelectedTime(null);
     } else {
       alert('Please select a time first');
     }
@@ -80,7 +73,7 @@ export const ClientPage: React.FC<ClientPageProps> = ({
 
   const isTimeInPast = (time: string): boolean => {
     const today = new Date().toISOString().split('T')[0];
-    if (selectedDate !== today) return false; // Only check for today's date
+    if (selectedDate !== today) return false;
 
     const currentTime = new Date();
     const timeMatch = time.match(/(\d+):(\d+)\s*([AP]M)/i);
@@ -89,61 +82,48 @@ export const ClientPage: React.FC<ClientPageProps> = ({
       const minutes = parseInt(timeMatch[2]);
       const ampm = timeMatch[3].toUpperCase();
       if (ampm === 'PM' && hours < 12) hours += 12;
-      if (ampm === 'AM' && hours === 12) hours = 0; // Midnight case
-      const appointmentTime = new Date(selectedDate); // Use selectedDate for correct date context
+      if (ampm === 'AM' && hours === 12) hours = 0;
+      const appointmentTime = new Date(selectedDate);
       appointmentTime.setHours(hours, minutes, 0, 0);
       return appointmentTime <= currentTime;
     }
-    return false; // Should not happen with valid time strings
+    return false;
   };
+
 
   return (
     <div className="appointment-container">
-      <div className="header" style={{ justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
+      <div className="client-page-header">
         <h1 className="page-title">Welcome, {userName}!</h1>
-        <div>
-            <button className="action-button-small"
-                onClick={onUpdatePhoneNumber}
-                style={{marginRight: '10px', borderColor: 'var(--secondary-color)', color: 'var(--secondary-color)', padding: '8px 16px'}}
-            >
+        <div className="client-header-actions">
+            <button className="action-button-small client-update-phone-btn" onClick={onUpdatePhoneNumber} >
                 Update Phone
             </button>
-            <button className="back-button" onClick={goBack} style={{color: 'var(--primary-color)', fontSize: '1em', fontWeight: 500}}>
+            <button className="back-button client-signout-btn" onClick={goBack}>
             Sign Out →
             </button>
         </div>
       </div>
 
-      <div>
-        <div className="appointment-card">
-          {userReservation ? (
-            <div className="card-header">
-              <div>
-                <h3 className="card-label">YOUR APPOINTMENT</h3>
-                <p className="card-title">Haircut with Nicole</p>
-                <p className="card-subtitle">On {new Date(userReservation.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })} at {userReservation.time}</p>
-              </div>
-              <button className="close-button" onClick={handleCancelClick}>×</button>
-            </div>
-          ) : (
-            <div>
-              <h3 className="card-label">BOOK AN APPOINTMENT</h3>
-              <p className="card-title">Haircut with Nicole</p>
-              <p className="card-subtitle">Select a date and time below.</p>
-            </div>
-          )}
-        </div>
-
-        {/* Optional:
-        <div className="nav-more">
-           <div className="more-times">
-            <span>View Calendar</span>
-            <span className="more-times-arrow">→</span>
+      <div className="appointment-card news-log-card">
+        {latestBarberNews ? (
+          <div>
+            <h3 className="card-label news-label">LATEST NEWS FROM THE BARBER</h3>
+            <p className="card-title news-message">{latestBarberNews.message}</p>
+            <p className="card-subtitle news-timestamp">
+              Posted: {new Date(latestBarberNews.timestamp as number).toLocaleString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+            </p>
           </div>
-        </div>
-        */}
+        ) : (
+          <div>
+            <h3 className="card-label news-label">BARBER NEWS</h3>
+            <p className="card-title news-message">No news updates at the moment.</p>
+          </div>
+        )}
+      </div>
 
-        <div className="date-selector">
+      <div className="appointment-card client-booking-card">
+        <div className="date-selector client-date-selector">
           {dates.map((dateObj) => (
             <div
               key={dateObj.fullDate}
@@ -165,23 +145,20 @@ export const ClientPage: React.FC<ClientPageProps> = ({
             const reservedByCurrent = isReservedByCurrentUser(time);
             const reservedByOther = isReservedByOthers(time);
             const pastTime = isTimeInPast(time);
-            // A time is "selected" if it's the `selectedTime` state,
-            // AND the user doesn't already have a reservation on this date,
-            // AND this specific time slot isn't their current reservation.
             const isSelectedForNewBooking = selectedTime === time && !userReservation && !reservedByCurrent;
 
             let buttonClass = 'time-button';
             let buttonText = time;
-            let isDisabled = false; // Corrected variable name
+            let isDisabled = false;
 
             if (pastTime) {
-              buttonClass += ' booked'; // Using 'booked' style for past times too
+              buttonClass += ' booked';
               buttonText = "Past";
               isDisabled = true;
             } else if (reservedByCurrent) {
               buttonClass += ' your-reservation';
               buttonText = "Your Slot";
-              isDisabled = true; // Disable clicking their own slot to "re-book" it via this button. Change flow is by selecting a *new* available slot.
+              isDisabled = true;
             } else if (reservedByOther) {
               buttonClass += ' booked';
               buttonText = "Booked";
@@ -194,7 +171,7 @@ export const ClientPage: React.FC<ClientPageProps> = ({
               <button
                 key={time}
                 className={buttonClass}
-                onClick={() => !isDisabled && handleTimeSelection(time)} // Will only call if not disabled
+                onClick={() => !isDisabled && handleTimeSelection(time)}
                 disabled={isDisabled}
               >
                 {buttonText}
@@ -203,10 +180,6 @@ export const ClientPage: React.FC<ClientPageProps> = ({
           })}
         </div>
 
-        {/* Show confirm button only if:
-            1. User does NOT have an existing reservation on the selectedDate
-            2. User HAS selected a `selectedTime` for a new booking
-        */}
         {!userReservation && selectedTime && (
           <div className="button-group">
             <button
@@ -218,10 +191,9 @@ export const ClientPage: React.FC<ClientPageProps> = ({
           </div>
         )}
 
-        {/* Show cancel button only if user HAS an existing reservation on the selectedDate */}
         {userReservation && (
           <div className="button-group">
-            <button className="cancel-button" onClick={handleCancelClick}>
+            <button className="cancel-button" onClick={handleCancelMainReservationClick}>
               Cancel My Appointment
             </button>
           </div>
