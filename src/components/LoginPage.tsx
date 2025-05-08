@@ -1,77 +1,67 @@
-import React from 'react';
+// src/components/LoginPage.tsx
+import React, { useState } from 'react';
 import './LoginPage.css';
+import { signInWithGoogle } from '../services/firebase-service';
+import { User } from 'firebase/auth';
+
+// Import the SVG path (Vite and CRA handle this by default,
+// giving you a URL string to the asset)
+import googleLogoUrl from '../assets/google-logo.svg';
 
 interface LoginPageProps {
-  name: string;
-  phone: string;
-  setName: (name: string) => void;
-  setPhone: (phone: string) => void;
-  handleLogin: () => void;
+  onAuthSuccess: (user: User) => void;
+  setLoadingApp: (loading: boolean) => void;
 }
 
 export const LoginPage: React.FC<LoginPageProps> = ({
-  name,
-  phone,
-  setName,
-  setPhone,
-  handleLogin,
+  onAuthSuccess,
+  setLoadingApp,
 }) => {
-  // Function to format the phone number input
-  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    // Remove any non-digit characters and ensure it doesn't have the prefix already
-    let value = e.target.value.replace(/\D/g, '');
-    
-    // Remove leading 0 if present (Israeli numbers typically start with 0)
-    if (value.startsWith('0')) {
-      value = value.substring(1);
-    }
-    
-    // Set the phone number without the prefix in the state
-    // The actual value with prefix will be constructed when needed
-    setPhone(value);
-  };
+  const [authError, setAuthError] = useState<string | null>(null);
 
-  // Handle Enter key press
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      handleLogin();
+  const handleGoogleLogin = async () => {
+    setLoadingApp(true);
+    setAuthError(null);
+    try {
+      const user = await signInWithGoogle();
+      onAuthSuccess(user);
+    } catch (error: any) {
+      console.error("Google login failed:", error);
+      setAuthError(error.message || 'Failed to sign in with Google. Please try again.');
+    } finally {
+      setLoadingApp(false);
     }
   };
 
   return (
     <div className="login-container">
-      {/* Optional decorative background circles */}
       <div className="bg-circle1"></div>
       <div className="bg-circle2"></div>
-      
+
       <div className="login-card">
-        <h2 className="title">Sign In</h2>
-        
-        <div className="input-wrapper">
-          <input
-            type="text"
-            placeholder="Enter Username"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            onKeyPress={handleKeyPress}
+        <h2 className="title">Sign In / Sign Up</h2>
+        <p style={{ marginBottom: '30px', fontSize: '0.9em', color: '#555' }}>
+          Continue with Google to book your appointment.
+        </p>
+
+        <button
+          className="login-button google-button"
+          onClick={handleGoogleLogin}
+        >
+          {/* Use an img tag with the imported URL */}
+          <img
+            src={googleLogoUrl}
+            alt="Google G Logo"
+            style={{ width: '18px', height: '18px', marginRight: '10px', verticalAlign: 'middle' }}
           />
-        </div>
-        
-        <div className="input-wrapper phone-input-wrapper">
-          <div className="phone-prefix">+972</div>
-          <input
-            type="tel"
-            className="phone-input"
-            placeholder="5XXXXXXXX"
-            value={phone}
-            onChange={handlePhoneChange}
-            onKeyPress={handleKeyPress}
-          />
-        </div>
-        
-        <button className="login-button" onClick={handleLogin}>
-          Login
+          Sign in with Google
         </button>
+
+        {authError && (
+          <p style={{ color: 'red', fontSize: '0.8rem', marginTop: '20px' }}>
+            {authError}
+          </p>
+        )}
       </div>
     </div>
   );

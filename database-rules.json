@@ -1,9 +1,11 @@
 {
-    "rules": {
-      ".read": true,
-      ".write": true,
-      "reservations": {
-        ".indexOn": ["date", "name", "phone"]
-      }
+  "rules": {
+    ".read": true,
+    ".write": true,
+    "reservations": {
+      ".indexOn": ["date", "userId", "phone"]
+    },
+    "userProfiles": {
     }
   }
+}
