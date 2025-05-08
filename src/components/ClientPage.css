@@ -1,4 +1,4 @@
-/* Modern, clean styling inspired by mobile app interfaces */
+/* src/components/ClientPage.css */
 :root {
   --primary-color: #ff3366;
   --secondary-color: #4a90e2;
@@ -16,44 +16,62 @@ body {
   font-family: 'Segoe UI', Roboto, -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
-/* Container styles */
 .appointment-container {
   max-width: 800px;
   margin: 0 auto;
   padding: 20px;
 }
 
-/* Header styles */
-.header {
+.client-page-header { /* Renamed from .header for specificity */
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+.client-header-actions {
   display: flex;
   align-items: center;
-  margin-bottom: 30px;
+  gap: 10px; /* Space between buttons in header */
+}
+.client-update-phone-btn { /* Specific styles for client update phone button */
+  border-color: var(--secondary-color) !important; /* Ensure this applies if .action-button-small has generic border */
+  color: var(--secondary-color) !important;
+  padding: 8px 16px !important; /* Ensure consistent padding */
+}
+.client-update-phone-btn:hover {
+  background-color: var(--secondary-color) !important;
+  color: white !important;
+}
+.client-signout-btn { /* Specific styles for client signout button */
+  color: var(--primary-color) !important; /* Important to override general .back-button */
+  font-size: 1em !important;
+  font-weight: 500 !important;
+}
+.client-signout-btn:hover {
+  color: #e62958 !important; /* Darker primary */
 }
 
-.back-button {
+
+.back-button { /* General back button style, can be used by admin too */
   display: flex;
   align-items: center;
-  color: var(--secondary-color);
-  font-size: 14px;
+  /* color: var(--secondary-color); */ /* Color will be set by more specific class now */
+  font-size: 1em;
   font-weight: 500;
   border: none;
   background: none;
   cursor: pointer;
   transition: color 0.2s;
 }
+/* .back-button:hover is handled by specific button classes now */
 
-.back-button:hover {
-  color: #2a5a9e;
-}
 
 .page-title {
   font-size: 1.25rem;
   font-weight: 600;
-  margin: 0 auto;
   color: var(--text-primary);
 }
 
-/* Appointment card styles */
 .appointment-card {
   padding: 24px;
   border-radius: 16px;
@@ -62,15 +80,12 @@ body {
   margin-bottom: 24px;
   transition: transform 0.2s;
 }
+.client-booking-card { /* Specific margin for the booking card */
+  margin-top: 20px;
+}
 
 .appointment-card:hover {
   transform: translateY(-2px);
-}
-
-.card-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
 }
 
 .card-label {
@@ -86,6 +101,7 @@ body {
   font-weight: 600;
   font-size: 1.125rem;
   margin-bottom: 4px;
+  color: var(--text-primary);
 }
 
 .card-subtitle {
@@ -93,46 +109,16 @@ body {
   font-size: 0.875rem;
 }
 
-.close-button {
-  font-size: 1.5rem;
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: var(--text-secondary);
-  transition: color 0.2s;
+.date-selector.client-date-selector { /* Specific date selector styles */
+  padding-top: 0px; /* If no prompt above it */
+  margin-top: 20px; /* If it follows the (now removed) prompt */
 }
-
-.close-button:hover {
-  color: var(--primary-color);
-}
-
-/* More times navigation */
-.nav-more {
-  display: flex;
-  justify-content: flex-end;
-  align-items: center;
-  margin-bottom: 16px;
-}
-
-.more-times {
-  display: flex;
-  align-items: center;
-  color: var(--secondary-color);
-  font-size: 0.875rem;
-  font-weight: 500;
-  cursor: pointer;
-}
-
-.more-times-arrow {
-  margin-left: 4px;
-}
-
-/* Date selection styles */
 .date-selector {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
   padding-bottom: 20px;
   margin-bottom: 20px;
+  gap: 8px;
 }
 
 .date-option {
@@ -141,17 +127,19 @@ body {
   padding: 12px 8px;
   border-radius: 12px;
   transition: all 0.2s;
-  margin: 0 4px;
+  border: 1px solid transparent;
 }
 
 .date-option:hover {
   background-color: rgba(74, 144, 226, 0.1);
+  border-color: rgba(74, 144, 226, 0.3);
 }
 
 .date-option.selected {
   background-color: var(--secondary-color);
   color: white;
   box-shadow: 0 2px 8px rgba(74, 144, 226, 0.4);
+  border-color: var(--secondary-color);
 }
 
 .date-day {
@@ -169,7 +157,6 @@ body {
   opacity: 1;
 }
 
-/* Time zone info */
 .time-zone {
   padding: 12px 0;
   text-align: center;
@@ -181,10 +168,9 @@ body {
   letter-spacing: 0.5px;
 }
 
-/* Time selection grid */
 .time-grid {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
   gap: 12px;
   margin-bottom: 24px;
 }
@@ -201,31 +187,26 @@ body {
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
 }
 
-.time-button:hover {
+.time-button:hover:not(:disabled) {
   border-color: var(--secondary-color);
   color: var(--secondary-color);
   transform: translateY(-1px);
 }
 
-.time-button:active {
+.time-button:active:not(:disabled) {
   transform: translateY(0);
 }
 
-.time-button.booked {
+.time-button.booked, .time-button:disabled {
   background-color: #f0f0f0;
   color: #aaa;
   cursor: not-allowed;
   border-color: #e0e0e0;
   box-shadow: none;
-}
-
-.time-button.booked:hover {
   transform: none;
-  border-color: #e0e0e0;
-  color: #aaa;
 }
 
-/* Style for time slots that are reserved by the current user */
+
 .time-button.your-reservation {
   background-color: #e8f4ff;
   color: var(--secondary-color);
@@ -233,22 +214,19 @@ body {
   font-weight: 600;
 }
 
-/* Style for selected time */
 .time-button.selected {
-  background-color: rgba(74, 144, 226, 0.1);
+  background-color: rgba(74, 144, 226, 0.15);
   border-color: var(--secondary-color);
   color: var(--secondary-color);
   font-weight: 500;
 }
 
-/* Button group for actions */
 .button-group {
   display: flex;
   gap: 16px;
   margin-top: 24px;
 }
 
-/* Login button styling */
 .action-button {
   background-color: var(--primary-color);
   color: white;
@@ -263,13 +241,13 @@ body {
   transition: all 0.2s;
 }
 
-.action-button:hover {
+.action-button:hover:not(:disabled) {
   background-color: #e62958;
   box-shadow: 0 6px 14px rgba(255, 51, 102, 0.4);
   transform: translateY(-2px);
 }
 
-.action-button:active {
+.action-button:active:not(:disabled) {
   transform: translateY(0);
 }
 
@@ -280,7 +258,6 @@ body {
   transform: none;
 }
 
-/* Cancel button styling */
 .cancel-button {
   background-color: white;
   color: var(--primary-color);
@@ -303,24 +280,77 @@ body {
   transform: translateY(0);
 }
 
-/* Responsive adjustments */
+.news-log-card {
+  background-color: #f0f4f8;
+  border: 1px solid #dfe6ec;
+  margin-bottom: 20px;
+}
+
+.news-log-card .card-label.news-label { /* More specific selector */
+  color: var(--primary-color);
+  font-size: 0.8rem;
+}
+
+.news-log-card .card-title.news-message {
+  font-size: 1em;
+  white-space: pre-wrap;
+  line-height: 1.6;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+}
+
+.news-log-card .card-subtitle.news-timestamp {
+  font-size: 0.75em;
+  color: var(--text-secondary);
+}
+
+.action-button-small { /* General small action button */
+    background-color: transparent;
+    border: 1px solid var(--border-color);
+    border-radius: 20px;
+    padding: 8px 16px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.action-button-small:hover {
+    background-color: rgba(0,0,0,0.05);
+}
+
+
 @media (max-width: 768px) {
   .time-grid {
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
   }
-  
   .date-selector {
-    grid-template-columns: repeat(3, 1fr);
-    gap: 8px;
+    grid-template-columns: repeat(auto-fit, minmax(70px, 1fr));
   }
 }
 
 @media (max-width: 480px) {
   .time-grid {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
   }
-  
   .date-selector {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(auto-fit, minmax(60px, 1fr));
+    gap: 6px;
+  }
+  .page-title {
+    font-size: 1.1rem;
+  }
+  .action-button-small {
+    padding: 6px 12px;
+    font-size: 0.8rem;
+  }
+  .client-page-header { /* Updated selector */
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  .client-header-actions { /* Updated selector */
+    width: 100%;
+    display: flex;
+    justify-content: flex-end;
   }
 }

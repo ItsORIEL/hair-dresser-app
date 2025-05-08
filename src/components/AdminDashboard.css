@@ -22,10 +22,9 @@
   margin-right: auto;
 }
 
-.back-link {
+.back-link { /* This class is used by both Admin and Client */
   display: flex;
   align-items: center;
-  color: var(--secondary-color, #4a90e2);
   font-size: 14px;
   font-weight: 500;
   border: none;
@@ -34,10 +33,13 @@
   transition: color 0.2s;
   padding: 8px 0;
 }
-
-.back-link:hover {
-  color: #2a5a9e;
+.admin-signout-button { /* Specific for admin sign out button color */
+ color: var(--primary-color, #ff3366);
 }
+.admin-signout-button:hover {
+  color: #e62958; /* Darker primary */
+}
+
 
 .section-header {
   display: flex;
@@ -46,7 +48,7 @@
   margin-bottom: 20px;
 }
 
-.section-title {
+.section-title { /* Used in AdminDashboard and AdminNewsPublisher */
   font-size: 1.2rem;
   font-weight: 600;
   color: var(--text-primary, #2c3e50);
@@ -87,14 +89,20 @@
   letter-spacing: 0.5px;
 }
 
-.reservations-card {
+.reservations-card { /* General card for sections */
   background-color: var(--card-background, #ffffff);
   border-radius: 12px;
   padding: 24px;
   box-shadow: var(--shadow, 0 4px 12px rgba(0, 0, 0, 0.05));
   margin-bottom: 30px;
+}
+.admin-appointments-table-card, .admin-today-summary-card { /* Specific margin for these cards */
+  margin-top: 30px;
+}
+.admin-appointments-table-card { /* For table scrolling */
   overflow-x: auto;
 }
+
 
 .empty-state {
   display: flex;
@@ -114,7 +122,7 @@
 
 .reservation-table {
   width: 100%;
-  min-width: 550px; 
+  min-width: 550px;
   border-collapse: collapse;
 }
 
@@ -123,7 +131,7 @@
   text-align: left;
   padding: 14px 16px;
   border-bottom: 1px solid var(--border-color, #eaeaea);
-  vertical-align: top; 
+  vertical-align: top;
 }
 
 .reservation-table th {
@@ -149,29 +157,26 @@
 .client-details-cell .reservation-phone-subline,
 .datetime-cell .reservation-time-subline {
   font-size: 0.85em;
-  color: var(--text-secondary, #7f8c8d);
 }
 
-/* Styling for the clickable phone link */
 .client-details-cell .reservation-phone-subline .phone-link {
-  color: var(--text-secondary, #7f8c8d); /* Start with subline color */
-  text-decoration: none; /* No underline by default */
-  cursor: pointer; /* Indicate it's clickable */
-  transition: color 0.2s, text-decoration 0.2s;
+  color: var(--secondary-color, #4a90e2);
+  font-weight: 500;
+  text-decoration: none;
+  cursor: pointer;
+  transition: color 0.2s, text-decoration 0.2s, opacity 0.2s;
 }
 
 .client-details-cell .reservation-phone-subline .phone-link:hover,
-.client-details-cell .reservation-phone-subline .phone-link:focus { /* Added focus style */
+.client-details-cell .reservation-phone-subline .phone-link:focus {
   text-decoration: underline;
-  color: var(--secondary-color, #4a90e2); /* Change to a link color on hover/focus */
+  opacity: 0.8;
 }
-
 
 .datetime-cell .reservation-time-subline {
-  color: var(--secondary-color, #4a90e2); 
+  color: var(--secondary-color, #4a90e2);
   font-weight: 500;
 }
-
 
 .actions-cell {
   text-align: right;
@@ -207,11 +212,76 @@
   color: white;
 }
 
-/* --- Responsive Adjustments --- */
+/* Styles for AdminNewsPublisher Component */
+.news-publisher-card {
+  background-color: var(--card-background, #ffffff);
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: var(--shadow, 0 4px 12px rgba(0, 0, 0, 0.05));
+  margin-top: 30px; /* Default margin from AdminDashboard */
+}
 
+.news-publisher-title { /* Uses .section-title */
+  margin-bottom: 20px;
+  font-size: 1.1rem; /* Specific size if needed */
+}
+
+.news-publisher-textarea {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid var(--border-color, #eaeaea);
+  border-radius: 8px;
+  font-size: 1em;
+  margin-bottom: 15px;
+  resize: vertical;
+  box-sizing: border-box;
+  min-height: 80px; /* Ensure a decent minimum height */
+}
+.news-publisher-textarea:focus {
+  border-color: var(--primary-color, #ff3366);
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(255, 51, 102, 0.2);
+}
+
+
+.news-publisher-button {
+  background-color: var(--primary-color, #ff3366);
+  color: white;
+  border: none;
+  border-radius: 30px;
+  padding: 12px 24px;
+  font-weight: 500;
+  font-size: 1em;
+  cursor: pointer;
+  transition: background-color 0.2s, opacity 0.2s;
+}
+.news-publisher-button.posting,
+.news-publisher-button:disabled { /* Combined disabled/posting state */
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+.news-publisher-button:hover:not(:disabled) {
+  background-color: #e62958; /* Darker primary */
+}
+
+
+.news-publisher-status {
+  margin-top: 15px;
+  font-size: 0.9em;
+  font-weight: 500;
+}
+.news-publisher-status.success {
+  color: green;
+}
+.news-publisher-status.error {
+  color: red;
+}
+
+
+/* --- Responsive Adjustments --- */
 @media (max-width: 768px) {
   .reservation-table {
-    min-width: 450px; 
+    min-width: 450px;
     font-size: 0.9rem;
   }
   .reservation-table th,
@@ -227,14 +297,14 @@
     margin-bottom: 10px;
     margin-right: 0;
   }
-  .back-link {
+  .back-link.admin-signout-button { /* Ensure specificity for admin signout button */
     margin-left: auto;
   }
-  .reservations-card {
+  .reservations-card, .news-publisher-card { /* Apply to news card too */
     padding: 15px 10px;
   }
   .reservation-table {
-    min-width: 0; 
+    min-width: 0;
     font-size: 0.85rem;
   }
   .reservation-table th,
@@ -243,10 +313,14 @@
   }
   .client-details-cell .reservation-name,
   .datetime-cell div:first-child {
-    margin-bottom: 2px; 
+    margin-bottom: 2px;
   }
   .action-button-small {
-    padding: 5px 8px; 
+    padding: 5px 8px;
     font-size: 0.75rem;
+  }
+  .news-publisher-button {
+    padding: 10px 20px;
+    font-size: 0.9em;
   }
 }

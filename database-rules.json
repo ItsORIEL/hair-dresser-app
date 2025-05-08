@@ -1,11 +1,21 @@
 {
   "rules": {
-    ".read": true,
-    ".write": true,
-    "reservations": {
-      ".indexOn": ["date", "userId", "phone"]
+    "reservations/{reservationId}": {
+      ".read": "auth != null",
+      ".write": "auth != null",
+      ".delete": "request.auth.uid == resource.data.userId || request.auth.uid == 'X6IZj1LMNKfZIZlwQud23U5mzhC3'"
     },
-    "userProfiles": {
+    "users/{userId}": {
+      ".read": "auth != null && auth.uid == userId",
+      ".write": "auth != null && auth.uid == userId"
+    },
+    "barberNews/{newsId}": {
+      ".read": "true",
+      ".write": "request.auth.uid == 'X6IZj1LMNKfZIZlwQud23U5mzhC3'"
+    },
+    "settings/adminGeneralSettings": {
+      ".read": "auth != null",
+      ".write": "request.auth.uid == 'X6IZj1LMNKfZIZlwQud23U5mzhC3'"
     }
   }
 }

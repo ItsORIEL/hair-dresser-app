@@ -2,6 +2,7 @@
 import React from 'react';
 import './AdminDashboard.css';
 import { Reservation } from '../services/firebase-service';
+import { AdminNewsPublisher } from './AdminNewsPublisher';
 
 interface AdminDashboardProps {
   reservations: Reservation[];
@@ -55,21 +56,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     return getTimeValue(a.time) - getTimeValue(b.time);
   });
 
-  // Helper function to format phone for 'tel:' URI (basic version)
-  // Assumes phone is stored like '0501234567' or '+972501234567'
   const formatPhoneNumberForTelLink = (phoneNumber: string) => {
-    let cleaned = phoneNumber.replace(/\D/g, ''); // Remove non-digits
-    if (cleaned.startsWith('0') && cleaned.length === 10) { // Common Israeli format like 05...
+    let cleaned = phoneNumber.replace(/\D/g, '');
+    if (cleaned.startsWith('0') && cleaned.length === 10) {
       return `+972${cleaned.substring(1)}`;
     }
-    if (cleaned.startsWith('972') && cleaned.length > 9) { // Already has country code but no +
+    if (cleaned.startsWith('972') && cleaned.length > 9) {
         return `+${cleaned}`
     }
-    // If it's already in E.164 format like +972...
     if (cleaned.startsWith('+')) {
         return cleaned;
     }
-    // Fallback for other formats, might need more robust parsing
     return cleaned;
   };
 
@@ -78,7 +75,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     <div className="admin-container">
       <div className="admin-header">
         <h1 className="admin-title">Admin Dashboard</h1>
-        <button className="back-link" onClick={goBack} style={{color: 'var(--primary-color)'}}>
+        <button className="back-link admin-signout-button" onClick={goBack}>
           Sign Out →
         </button>
       </div>
@@ -98,7 +95,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         </div>
       </div>
 
-      <div className="reservations-card">
+      <AdminNewsPublisher />
+
+      <div className="reservations-card admin-appointments-table-card">
         <div className="section-header">
           <h2 className="section-title">All Appointments</h2>
         </div>
@@ -121,10 +120,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <tr key={res.id} className="reservation-row">
                   <td className="client-details-cell">
                     <div className="reservation-name">{res.name}</div>
-                    {/* MODIFIED: Make phone number clickable */}
                     <div className="reservation-phone-subline">
                       <a href={`tel:${formatPhoneNumberForTelLink(res.phone)}`} className="phone-link">
-                        {res.phone} {/* Display the original phone format for readability */}
+                        {res.phone}
                       </a>
                     </div>
                   </td>
@@ -147,7 +145,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         )}
       </div>
 
-      <div className="reservations-card" style={{marginTop: '30px'}}>
+      <div className="reservations-card admin-today-summary-card">
         <div className="section-header">
           <h2 className="section-title">Today • {todayReadable}</h2>
         </div>
