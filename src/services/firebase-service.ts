@@ -1,25 +1,18 @@
 // src/services/firebase-service.ts
 import { getDatabase, ref, set, onValue, remove, push, get, DatabaseReference, query, orderByChild, equalTo, limitToLast, serverTimestamp } from "firebase/database";
 import app, { authInstance } from "../firebase";
+import { GoogleAuthProvider, signInWithPopup, signOut as firebaseSignOut, User, onAuthStateChanged as firebaseOnAuthStateChanged } from 'firebase/auth';
 
-import {
-  GoogleAuthProvider,
-  signInWithPopup,
-  signOut as firebaseSignOut,
-  User,
-} from 'firebase/auth';
-
-// Define Reservation type
+// --- Interfaces ---
 export interface Reservation {
   name: string;
   phone: string;
   time: string;
-  date: string;
-  id?: string;
-  userId?: string;
+  date: string; // Expect YYYY-MM-DD format
+  id: string; // ID is now mandatory within the object
+  userId: string; // User ID is mandatory
 }
 
-// Define User Profile type
 export interface UserProfile {
   uid: string;
   displayName: string;
@@ -27,21 +20,25 @@ export interface UserProfile {
   phone?: string;
 }
 
-// NEW: BarberNews interface
 export interface BarberNews {
-  id?: string;
+  id?: string; // Keep ID optional here as it's added after push
   message: string;
-  timestamp: number | object; // Can be number or Firebase ServerValue.TIMESTAMP
+  timestamp: number | object; // Firebase server timestamp resolves to number
 }
+
+export type BlockedTimeSlotsMap = Map<string, Set<string>>;
 
 const db = getDatabase(app);
 
 // --- Reservation Functions ---
-export const createReservation = async (reservation: Omit<Reservation, 'id'>): Promise<string> => {
+export const createReservation = async (reservationData: Omit<Reservation, 'id'>): Promise<string> => {
   const reservationsRef: DatabaseReference = ref(db, 'reservations');
   const newReservationRef = push(reservationsRef);
-  const newReservationId = newReservationRef.key || '';
-  const reservationWithId: Reservation = { ...reservation, id: newReservationId };
+  const newReservationId = newReservationRef.key;
+  if (!newReservationId) {
+    throw new Error("Failed to generate a new reservation ID.");
+  }
+  const reservationWithId: Reservation = { ...reservationData, id: newReservationId };
   await set(newReservationRef, reservationWithId);
   return newReservationId;
 };
@@ -53,7 +50,8 @@ export const getReservations = (callback: (reservations: Reservation[]) => void)
     const reservationsList: Reservation[] = [];
     if (data) {
       Object.keys(data).forEach((key) => {
-        reservationsList.push({ ...data[key], id: key });
+        const reservation = data[key];
+        reservationsList.push({ ...reservation, id: reservation.id || key });
       });
     }
     callback(reservationsList);
@@ -62,103 +60,139 @@ export const getReservations = (callback: (reservations: Reservation[]) => void)
 };
 
 export const deleteReservation = async (reservationId: string): Promise<void> => {
+  if (!reservationId || typeof reservationId !== 'string') {
+      console.error("Invalid reservationId provided for deletion:", reservationId);
+      throw new Error("Invalid reservation ID.");
+  }
   const reservationRef: DatabaseReference = ref(db, `reservations/${reservationId}`);
-  await remove(reservationRef);
+  try {
+    await remove(reservationRef);
+  } catch (error) {
+      console.error(`Error deleting reservation ${reservationId}:`, error);
+      throw error;
+  }
+};
+
+export const isTimeSlotBooked = async (date: string, time: string): Promise<boolean> => {
+    const reservationsRef = ref(db, 'reservations');
+    const dateQuery = query(reservationsRef, orderByChild('date'), equalTo(date));
+    try {
+        const snapshot = await get(dateQuery);
+        if (!snapshot.exists()) return false;
+        const data = snapshot.val();
+        for (const key in data) {
+            const reservation = data[key] as Reservation;
+            if (reservation.time === time) {
+                return true;
+            }
+        }
+        return false;
+    } catch (error) {
+        console.error(`Error checking if time slot ${date} ${time} is booked:`, error);
+        return true; // Assume booked on error
+    }
 };
 
 export const isTimeSlotAvailable = async (date: string, time: string, currentUserId?: string): Promise<boolean> => {
-  const reservationsRef = ref(db, 'reservations');
-  const snapshot = await get(reservationsRef);
-
-  const currentDate = new Date().toISOString().split('T')[0];
-  if (date === currentDate) {
-    const currentTime = new Date();
-    const timeStr = time.match(/(\d+):(\d+)\s*([AP]M)/i);
-    if (timeStr) {
-      let hours = parseInt(timeStr[1]);
-      const minutes = parseInt(timeStr[2]);
-      const ampm = timeStr[3].toUpperCase();
-      if (ampm === 'PM' && hours < 12) hours += 12;
-      if (ampm === 'AM' && hours === 12) hours = 0;
-      const appointmentTime = new Date(date);
-      appointmentTime.setHours(hours, minutes, 0, 0);
-      if (appointmentTime <= currentTime) return false;
+    const reservationsRef = ref(db, 'reservations');
+    const dateQuery = query(reservationsRef, orderByChild('date'), equalTo(date));
+    try {
+        const snapshot = await get(dateQuery);
+        if (!snapshot.exists()) return true;
+        const data = snapshot.val();
+        for (const key in data) {
+            const reservation = data[key] as Reservation;
+            if (reservation.date === date && reservation.time === time) {
+                if (currentUserId && reservation.userId === currentUserId) {
+                    return true; // User's own slot
+                }
+                return false; // Booked by someone else
+            }
+        }
+        return true;
+    } catch (error) {
+        console.error(`Error checking availability for slot ${date} ${time}:`, error);
+        return false; // Assume unavailable on error
     }
-  }
-
-  if (!snapshot.exists()) return true;
-
-  const data = snapshot.val();
-  for (const key in data) {
-    const reservation = data[key] as Reservation;
-    if (reservation.date === date && reservation.time === time) {
-      if (currentUserId && reservation.userId === currentUserId) {
-        continue;
-      }
-      return false;
-    }
-  }
-  return true;
 };
 
 export const getUserReservationForDate = async (userId: string, date: string): Promise<Reservation | null> => {
-  const reservationsRef = ref(db, 'reservations');
-  const userReservationsQuery = query(reservationsRef, orderByChild('userId'), equalTo(userId));
-  const snapshot = await get(userReservationsQuery);
-
-  if (!snapshot.exists()) return null;
-
-  let foundReservation: Reservation | null = null;
-  snapshot.forEach((childSnapshot) => {
-    const reservation = childSnapshot.val() as Reservation;
-    if (reservation.date === date) {
-      foundReservation = { ...reservation, id: childSnapshot.key };
-      return true;
+    const reservationsRef = ref(db, 'reservations');
+    const userReservationsQuery = query(reservationsRef, orderByChild('userId'), equalTo(userId));
+    try {
+        const snapshot = await get(userReservationsQuery);
+        if (!snapshot.exists()) return null;
+        let foundReservation: Reservation | null = null;
+        snapshot.forEach((childSnapshot) => {
+            const reservation = childSnapshot.val() as Reservation;
+            const reservationId = childSnapshot.key;
+            if (reservation.date === date) {
+                foundReservation = { ...reservation, id: reservation.id || reservationId! };
+                return true; // Exit .forEach
+            }
+        });
+        return foundReservation;
+    } catch (error) {
+        console.error(`Error fetching reservation for user ${userId} on date ${date}:`, error);
+        return null;
     }
-  });
-  return foundReservation;
 };
 
-// --- User Profile (Phone Number) Functions ---
+// --- User Profile Functions ---
 export const saveUserPhoneNumber = async (userId: string, phoneNumber: string, displayName: string, email: string | null): Promise<void> => {
   const userProfileRef = ref(db, `userProfiles/${userId}`);
   const profileData: UserProfile = {
     uid: userId,
-    displayName: displayName,
+    displayName: displayName || "User",
     email: email,
     phone: phoneNumber
   };
-  await set(userProfileRef, profileData);
+  try {
+    await set(userProfileRef, profileData);
+  } catch (error) {
+      console.error(`Error saving user profile for ${userId}:`, error);
+      throw error;
+  }
 };
 
 export const getUserPhoneNumber = async (userId: string): Promise<string | undefined> => {
-  const userProfileRef = ref(db, `userProfiles/${userId}/phone`);
-  const snapshot = await get(userProfileRef);
-  if (snapshot.exists()) {
-    return snapshot.val();
+  const userProfilePhoneRef = ref(db, `userProfiles/${userId}/phone`);
+  try {
+    const snapshot = await get(userProfilePhoneRef);
+    if (snapshot.exists()) {
+      return snapshot.val();
+    }
+    return undefined;
+  } catch (error) {
+      console.error(`Error fetching phone number for user ${userId}:`, error);
+      return undefined;
   }
-  return undefined;
 };
 
 // --- Barber News Functions ---
 export const postBarberNews = async (message: string): Promise<string> => {
   const newsRef: DatabaseReference = ref(db, 'barberNews');
   const newNewsItemRef = push(newsRef);
-  const newNewsId = newNewsItemRef.key || '';
-
-  const newsItem: Omit<BarberNews, 'id'> = { // Omit id as it's generated
+  const newNewsId = newNewsItemRef.key;
+  if (!newNewsId) {
+    throw new Error("Failed to generate ID for new news item.");
+  }
+  const newsItem: Omit<BarberNews, 'id'> = {
     message: message,
-    timestamp: serverTimestamp() // Use Firebase server timestamp for accuracy
+    timestamp: serverTimestamp()
   };
-
-  await set(newNewsItemRef, newsItem);
-  return newNewsId;
+  try {
+    await set(newNewsItemRef, newsItem);
+    return newNewsId;
+  } catch (error) {
+      console.error(`Error posting news item ${newNewsId}:`, error);
+      throw error;
+  }
 };
 
 export const getLatestBarberNews = (callback: (news: BarberNews | null) => void): () => void => {
   const newsRef: DatabaseReference = ref(db, 'barberNews');
   const latestNewsQuery = query(newsRef, orderByChild('timestamp'), limitToLast(1));
-
   const unsubscribe = onValue(latestNewsQuery, (snapshot) => {
     let latestNews: BarberNews | null = null;
     if (snapshot.exists()) {
@@ -167,8 +201,124 @@ export const getLatestBarberNews = (callback: (news: BarberNews | null) => void)
       });
     }
     callback(latestNews);
+  }, (error) => {
+      console.error("Error fetching latest barber news:", error);
+      callback(null);
   });
   return unsubscribe;
+};
+
+// --- Blocked Days Functions ---
+export const getBlockedDays = (callback: (blockedDays: Set<string>) => void): () => void => {
+  const blockedDaysRef = ref(db, 'blockedDays');
+  const unsubscribe = onValue(blockedDaysRef, (snapshot) => {
+    const data = snapshot.val();
+    const blockedSet = new Set<string>();
+    if (data) {
+      Object.keys(data).forEach((dateString) => {
+        if (data[dateString] === true && /^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
+            blockedSet.add(dateString);
+        }
+      });
+    }
+    callback(blockedSet);
+  }, (error) => {
+      console.error("Error fetching blocked days:", error);
+      callback(new Set<string>());
+  });
+  return unsubscribe;
+};
+
+export const blockDay = async (dateString: string): Promise<void> => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
+      throw new Error("Invalid date format. Use YYYY-MM-DD.");
+  }
+  const blockedDayRef = ref(db, `blockedDays/${dateString}`);
+  try {
+    await set(blockedDayRef, true);
+  } catch (error) {
+      console.error(`Error blocking day ${dateString}:`, error);
+      throw error;
+  }
+};
+
+export const unblockDay = async (dateString: string): Promise<void> => {
+   if (!/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
+      throw new Error("Invalid date format. Use YYYY-MM-DD.");
+  }
+  const blockedDayRef = ref(db, `blockedDays/${dateString}`);
+  try {
+    await remove(blockedDayRef);
+  } catch (error) {
+      console.error(`Error unblocking day ${dateString}:`, error);
+      throw error;
+  }
+};
+
+// --- Blocked Time Slots Functions ---
+export const getBlockedTimeSlots = (callback: (slots: BlockedTimeSlotsMap) => void): () => void => {
+    const blockedSlotsRef = ref(db, 'blockedTimeSlots');
+    const unsubscribe = onValue(blockedSlotsRef, (snapshot) => {
+        const data = snapshot.val();
+        const slotsMap: BlockedTimeSlotsMap = new Map();
+        if (data) {
+            Object.keys(data).forEach((dateString) => {
+                if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
+                    const times = data[dateString];
+                    if (typeof times === 'object' && times !== null) {
+                        const timeSet = new Set<string>();
+                        Object.keys(times).forEach((timeString) => {
+                            if (times[timeString] === true) {
+                                if (typeof timeString === 'string' && /^\d{1,2}:\d{2}\s(AM|PM)$/i.test(timeString)) {
+                                    timeSet.add(timeString);
+                                }
+                            }
+                        });
+                        if (timeSet.size > 0) {
+                            slotsMap.set(dateString, timeSet);
+                        }
+                    }
+                }
+            });
+        }
+        callback(slotsMap);
+    }, (error) => {
+        console.error("Error fetching blocked time slots:", error);
+        callback(new Map());
+    });
+    return unsubscribe;
+};
+
+export const blockTimeSlot = async (dateString: string, timeString: string): Promise<void> => {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
+        throw new Error("Invalid date format. Use YYYY-MM-DD.");
+    }
+    if (!/^\d{1,2}:\d{2}\s(AM|PM)$/i.test(timeString)) {
+         throw new Error('Invalid time format. Use "H:MM AM/PM".');
+    }
+    const blockedSlotRef = ref(db, `blockedTimeSlots/${dateString}/${timeString}`);
+    try {
+        await set(blockedSlotRef, true);
+    } catch (error) {
+        console.error(`Error blocking time slot ${dateString} ${timeString}:`, error);
+        throw error;
+    }
+};
+
+export const unblockTimeSlot = async (dateString: string, timeString: string): Promise<void> => {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
+        throw new Error("Invalid date format. Use YYYY-MM-DD.");
+    }
+     if (!/^\d{1,2}:\d{2}\s(AM|PM)$/i.test(timeString)) {
+         throw new Error('Invalid time format. Use "H:MM AM/PM".');
+    }
+    const blockedSlotRef = ref(db, `blockedTimeSlots/${dateString}/${timeString}`);
+    try {
+        await remove(blockedSlotRef);
+    } catch (error) {
+        console.error(`Error unblocking time slot ${dateString} ${timeString}:`, error);
+        throw error;
+    }
 };
 
 // --- Firebase Authentication Functions ---
@@ -178,7 +328,7 @@ export const signInWithGoogle = async (): Promise<User> => {
   try {
     const result = await signInWithPopup(authInstance, googleProvider);
     return result.user;
-  } catch (error) {
+  } catch (error: any) {
     console.error("Google Sign-In Error:", error);
     throw error;
   }
@@ -193,6 +343,4 @@ export const signOut = async (): Promise<void> => {
   }
 };
 
-export const onAuthStateChanged = (callback: (user: User | null) => void) => {
-  return authInstance.onAuthStateChanged(callback);
-};
+export { firebaseOnAuthStateChanged as onAuthStateChanged };
