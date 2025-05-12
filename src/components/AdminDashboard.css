@@ -89,12 +89,14 @@
   letter-spacing: 0.5px;
 }
 
-.reservations-card { /* General card for sections */
+/* General card styles applying to multiple admin sections */
+.reservations-card, .news-publisher-card, .day-blocker-card, .timeslot-blocker-card {
   background-color: var(--card-background, #ffffff);
   border-radius: 12px;
   padding: 24px;
   box-shadow: var(--shadow, 0 4px 12px rgba(0, 0, 0, 0.05));
-  margin-bottom: 30px;
+  margin-bottom: 30px; /* Consistent margin */
+  margin-top: 30px; /* Consistent margin */
 }
 .admin-appointments-table-card, .admin-today-summary-card { /* Specific margin for these cards */
   margin-top: 30px;
@@ -122,7 +124,7 @@
 
 .reservation-table {
   width: 100%;
-  min-width: 550px;
+  min-width: 650px; /* Increased min-width for Status column */
   border-collapse: collapse;
 }
 
@@ -131,7 +133,7 @@
   text-align: left;
   padding: 14px 16px;
   border-bottom: 1px solid var(--border-color, #eaeaea);
-  vertical-align: top;
+  vertical-align: middle; /* Align content vertically */
 }
 
 .reservation-table th {
@@ -143,7 +145,7 @@
   z-index: 10;
 }
 
-.reservation-row:hover {
+.reservation-row:hover:not(.blocked-day-row) { /* Don't highlight blocked rows on hover */
   background-color: rgba(74, 144, 226, 0.05);
 }
 
@@ -197,7 +199,7 @@
   line-height: 1.2;
 }
 
-.action-button-small:hover {
+.action-button-small:hover:not(:disabled) {
   background-color: var(--secondary-color, #4a90e2);
   color: white;
 }
@@ -207,18 +209,21 @@
   border-color: var(--primary-color, #ff3366);
 }
 
-.action-button-small.delete:hover {
+.action-button-small.delete:hover:not(:disabled) {
   background-color: var(--primary-color, #ff3366);
   color: white;
 }
+.action-button-small:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    border-color: #ccc;
+    color: #ccc;
+}
 
-/* Styles for AdminNewsPublisher Component */
+
+/* --- Styles for AdminNewsPublisher Component --- */
 .news-publisher-card {
-  background-color: var(--card-background, #ffffff);
-  border-radius: 12px;
-  padding: 24px;
-  box-shadow: var(--shadow, 0 4px 12px rgba(0, 0, 0, 0.05));
-  margin-top: 30px; /* Default margin from AdminDashboard */
+  /* Uses general card styles */
 }
 
 .news-publisher-title { /* Uses .section-title */
@@ -278,15 +283,391 @@
 }
 
 
+/* --- Styles for AdminDayBlocker Component --- */
+
+.day-blocker-card {
+  /* Inherits general card styles */
+}
+.day-blocker-description {
+  font-size: 0.9em;
+  color: var(--text-secondary);
+  margin-bottom: 20px;
+  margin-top: -15px; /* Adjust spacing below title */
+}
+
+
+.day-blocker-title { /* Uses .section-title */
+  margin-bottom: 20px;
+}
+
+.day-blocker-controls {
+  display: flex;
+  flex-wrap: wrap; /* Allow wrapping on small screens */
+  align-items: center;
+  gap: 15px;
+  margin-bottom: 20px;
+}
+
+.day-blocker-date-input {
+  padding: 10px 12px;
+  border: 1px solid var(--border-color, #eaeaea);
+  border-radius: 8px;
+  font-size: 1em;
+  flex-grow: 1; /* Take available space */
+  min-width: 180px; /* Ensure decent width for date */
+  box-sizing: border-box;
+}
+.day-blocker-date-input:focus {
+  border-color: var(--primary-color, #ff3366);
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(255, 51, 102, 0.2);
+}
+
+
+.day-blocker-buttons {
+  display: flex;
+  gap: 10px;
+}
+
+/* Reusing day-blocker-button for time-slot blocker too */
+.day-blocker-button, .timeslot-blocker-button {
+  padding: 10px 18px;
+  border: none;
+  border-radius: 25px;
+  cursor: pointer;
+  font-size: 0.9em;
+  font-weight: 500;
+  transition: background-color 0.2s, opacity 0.2s;
+  white-space: nowrap; /* Prevent text wrapping */
+}
+
+.day-blocker-button.block, .timeslot-blocker-button.block {
+  background-color: var(--primary-color, #ff3366);
+  color: white;
+}
+.day-blocker-button.block:hover:not(:disabled),
+.timeslot-blocker-button.block:hover:not(:disabled) {
+  background-color: #e62958; /* Darker primary */
+}
+
+.day-blocker-button.unblock, .timeslot-blocker-button.unblock {
+  background-color: var(--secondary-color, #4a90e2);
+  color: white;
+}
+.day-blocker-button.unblock:hover:not(:disabled),
+.timeslot-blocker-button.unblock:hover:not(:disabled) {
+  background-color: #357ABD; /* Darker secondary */
+}
+
+.day-blocker-button:disabled, .timeslot-blocker-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  background-color: #cccccc;
+}
+
+/* Reusing day-blocker-status for time-slot blocker too */
+.day-blocker-status, .timeslot-blocker-status {
+  margin-top: 15px;
+  font-size: 0.9em;
+  font-weight: 500;
+  text-align: center;
+  min-height: 1.2em; /* Reserve space */
+}
+.day-blocker-status.success, .timeslot-blocker-status.success {
+  color: green;
+}
+.day-blocker-status.error, .timeslot-blocker-status.error {
+  color: red;
+}
+
+
+.blocked-days-list {
+  margin-top: 25px;
+  border-top: 1px solid var(--border-color, #eaeaea);
+  padding-top: 20px;
+}
+
+.blocked-list-title { /* Used for day blocker */
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-primary, #2c3e50);
+  margin-bottom: 15px;
+}
+
+.blocked-days-list ul { /* Used for day blocker */
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  max-height: 250px; /* Allow scrolling if list gets long */
+  overflow-y: auto;
+  border: 1px solid var(--border-color, #eaeaea); /* Optional border around list */
+  border-radius: 8px;
+}
+
+.blocked-list-item { /* Used for day blocker */
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 15px; /* Increased padding */
+  border-bottom: 1px solid #f0f0f0;
+  font-size: 0.95em;
+}
+.blocked-list-item:last-child {
+  border-bottom: none;
+}
+
+.blocked-list-item span { /* Used for day blocker */
+  color: var(--text-primary, #333); /* Make date more prominent */
+  font-weight: 500;
+}
+
+.unblock-list-button { /* Used for day blocker */
+  background-color: transparent;
+  color: var(--secondary-color, #4a90e2);
+  border: 1px solid var(--secondary-color, #4a90e2);
+  border-radius: 20px;
+  padding: 4px 12px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-left: 10px;
+  flex-shrink: 0; /* Prevent button shrinking */
+}
+
+.unblock-list-button:hover:not(:disabled) {
+  background-color: var(--secondary-color, #4a90e2);
+  color: white;
+}
+.unblock-list-button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    border-color: #ccc;
+    color: #ccc;
+}
+
+.blocked-list-empty { /* Used for day blocker */
+  color: var(--text-secondary, #7f8c8d);
+  font-style: italic;
+  font-size: 0.9em;
+  padding: 15px;
+  text-align: center;
+}
+
+/* --- Styles for AdminTimeSlotBlocker Component --- */
+
+.timeslot-blocker-card {
+  /* Inherits general card styles */
+}
+.timeslot-blocker-description {
+  font-size: 0.9em;
+  color: var(--text-secondary);
+  margin-bottom: 20px;
+  margin-top: -15px;
+}
+
+.timeslot-blocker-title { /* Uses .section-title */
+  margin-bottom: 20px;
+}
+
+.timeslot-blocker-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px; /* Reduced gap for more compact layout */
+  margin-bottom: 20px;
+}
+
+.timeslot-blocker-date-input,
+.timeslot-blocker-time-select {
+  padding: 10px 12px;
+  border: 1px solid var(--border-color, #eaeaea);
+  border-radius: 8px;
+  font-size: 0.95em; /* Slightly smaller font for compactness */
+  box-sizing: border-box;
+  height: 40px; /* Standard height */
+}
+.timeslot-blocker-date-input {
+   min-width: 160px; /* Adjust width */
+   flex-basis: 160px; /* Base width before growing/shrinking */
+   flex-grow: 1;
+}
+.timeslot-blocker-time-select {
+  min-width: 130px; /* Adjust width */
+  flex-basis: 130px;
+  flex-grow: 1;
+  background-color: white;
+}
+
+.time-range-separator {
+    padding: 0 8px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    align-self: center; /* Align with inputs */
+}
+
+.sr-only { /* Screen-reader only styles */
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+
+.timeslot-blocker-date-input:focus,
+.timeslot-blocker-time-select:focus {
+  border-color: var(--primary-color, #ff3366);
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(255, 51, 102, 0.2);
+}
+
+.timeslot-blocker-buttons {
+  display: flex;
+  gap: 10px;
+  margin-left: auto; /* Push buttons to the right if space allows */
+  flex-shrink: 0; /* Prevent buttons from shrinking too much */
+}
+
+/* Time slot blocker buttons reuse .day-blocker-button styles above */
+
+/* Time slot blocker status reuse .day-blocker-status styles above */
+
+.blocked-timeslots-list {
+  margin-top: 25px;
+  border-top: 1px solid var(--border-color, #eaeaea);
+  padding-top: 20px;
+}
+.blocked-slots-list-title { /* Reusing .blocked-list-title */
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-primary, #2c3e50);
+  margin-bottom: 15px;
+}
+.blocked-timeslots-list ul { /* Reusing .blocked-days-list ul */
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  max-height: 300px;
+  overflow-y: auto;
+  border: 1px solid var(--border-color, #eaeaea);
+  border-radius: 8px;
+}
+.blocked-slot-list-item { /* Reusing .blocked-list-item */
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 15px;
+  border-bottom: 1px solid #f0f0f0;
+  font-size: 0.95em;
+}
+.blocked-slot-list-item:last-child { border-bottom: none; }
+
+.blocked-slot-list-item span { /* Reusing .blocked-list-item span */
+  color: var(--text-primary, #333);
+  font-weight: 500;
+}
+.blocked-slot-list-item .slot-time { /* Style for the time part */
+    margin-left: 10px;
+    color: var(--secondary-color);
+    font-weight: bold;
+}
+
+.unblock-slot-list-button { /* Reusing .unblock-list-button */
+  background-color: transparent;
+  color: var(--secondary-color, #4a90e2);
+  border: 1px solid var(--secondary-color, #4a90e2);
+  border-radius: 20px;
+  padding: 4px 12px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-left: 10px;
+  flex-shrink: 0;
+}
+.unblock-slot-list-button:hover:not(:disabled) {
+  background-color: var(--secondary-color, #4a90e2);
+  color: white;
+}
+.unblock-slot-list-button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    border-color: #ccc;
+    color: #ccc;
+}
+
+.blocked-slots-list-empty { /* Reusing .blocked-list-empty */
+  color: var(--text-secondary, #7f8c8d);
+  font-style: italic;
+  font-size: 0.9em;
+  padding: 15px;
+  text-align: center;
+}
+
+/* --- Styles for Appointment Table Status Indicators --- */
+.status-cell {
+  text-align: center; /* Center align status */
+  white-space: nowrap;
+}
+.status-indicator {
+  padding: 4px 10px; /* Adjusted padding */
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 600; /* Bolder text */
+  display: inline-block;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.status-indicator.active {
+  background-color: #e6f7ff; /* Lighter blue */
+  color: #1890ff; /* Standard blue */
+  border: 1px solid #91d5ff; /* Blue border */
+}
+.status-indicator.blocked {
+  background-color: #fff1f0; /* Lighter red */
+  color: #ff4d4f; /* Standard red */
+  border: 1px solid #ffa39e; /* Red border */
+}
+.reservation-row.blocked-day-row {
+  background-color: #fafafa !important; /* Override hover, ensure it's visible */
+  opacity: 0.65; /* Slightly more faded */
+}
+.admin-today-summary-card .status-indicator.blocked {
+    margin-left: 10px;
+    vertical-align: middle;
+}
+
+
 /* --- Responsive Adjustments --- */
 @media (max-width: 768px) {
   .reservation-table {
-    min-width: 450px;
+    min-width: 550px;
     font-size: 0.9rem;
   }
   .reservation-table th,
   .reservation-table td {
     padding: 12px 10px;
+  }
+  /* Time Slot Blocker Responsive adjustments for medium screens */
+  .timeslot-blocker-controls {
+    /* Allow more items per row if space allows */
+  }
+  .timeslot-blocker-date-input {
+    flex-basis: auto; /* Allow natural width */
+  }
+  .timeslot-blocker-time-select {
+    flex-basis: auto;
+  }
+  .timeslot-blocker-buttons {
+      margin-left: 0; /* Don't push to right */
+      width: 100%; /* Full width for buttons container */
+      justify-content: center; /* Center buttons */
+      margin-top: 10px; /* Add space if they wrap */
   }
 }
 
@@ -297,10 +678,10 @@
     margin-bottom: 10px;
     margin-right: 0;
   }
-  .back-link.admin-signout-button { /* Ensure specificity for admin signout button */
+  .back-link.admin-signout-button {
     margin-left: auto;
   }
-  .reservations-card, .news-publisher-card { /* Apply to news card too */
+  .reservations-card, .news-publisher-card, .day-blocker-card, .timeslot-blocker-card {
     padding: 15px 10px;
   }
   .reservation-table {
@@ -310,7 +691,11 @@
   .reservation-table th,
   .reservation-table td {
     padding: 10px 8px;
+    white-space: normal;
   }
+   .status-cell, .actions-cell {
+       white-space: nowrap;
+   }
   .client-details-cell .reservation-name,
   .datetime-cell div:first-child {
     margin-bottom: 2px;
@@ -322,5 +707,59 @@
   .news-publisher-button {
     padding: 10px 20px;
     font-size: 0.9em;
+  }
+
+  /* Day Blocker Responsive */
+   .day-blocker-controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .day-blocker-date-input {
+    width: 100%;
+  }
+  .day-blocker-buttons {
+    width: 100%;
+    justify-content: space-around;
+  }
+  .day-blocker-button {
+     flex-grow: 1;
+     padding: 12px 10px;
+  }
+  .blocked-list-item {
+    font-size: 0.9em;
+  }
+  .unblock-list-button {
+    padding: 4px 8px;
+    font-size: 0.75rem;
+  }
+
+  /* Time Slot Blocker Responsive */
+   .timeslot-blocker-controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .timeslot-blocker-date-input,
+  .timeslot-blocker-time-select {
+    width: 100%;
+  }
+  .time-range-separator {
+      text-align: center;
+      padding: 5px 0;
+  }
+  .timeslot-blocker-buttons {
+    width: 100%;
+    justify-content: space-around;
+  }
+  .timeslot-blocker-button {
+     flex-grow: 1;
+     padding: 12px 10px;
+  }
+  .blocked-slot-list-item {
+    font-size: 0.9em;
+    padding: 8px 10px;
+  }
+   .unblock-slot-list-button {
+    padding: 4px 8px;
+    font-size: 0.75rem;
   }
 }

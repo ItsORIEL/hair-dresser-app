@@ -1,8 +1,10 @@
 // src/components/AdminDashboard.tsx
-import React from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import './AdminDashboard.css';
-import { Reservation } from '../services/firebase-service';
+import { Reservation, getBlockedDays, blockDay, unblockDay } from '../services/firebase-service';
 import { AdminNewsPublisher } from './AdminNewsPublisher';
+import { AdminDayBlocker } from './AdminDayBlocker';
+import { AdminTimeSlotBlocker } from './AdminTimeSlotBlocker';
 
 interface AdminDashboardProps {
   reservations: Reservation[];
@@ -10,93 +12,108 @@ interface AdminDashboardProps {
   onDeleteReservation: (id: string) => void;
 }
 
+const getTimeValue = (timeStr: string): number => {
+    const timeMatch = timeStr?.match(/(\d+):(\d+)\s*([AP]M)/i);
+    if (!timeMatch) return 0;
+    let hours = parseInt(timeMatch[1], 10);
+    const minutes = parseInt(timeMatch[2], 10);
+    const modifier = timeMatch[3].toUpperCase();
+    if (modifier === 'PM' && hours < 12) hours += 12;
+    if (modifier === 'AM' && hours === 12) hours = 0;
+    return hours * 60 + minutes;
+};
+
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   reservations,
   goBack,
   onDeleteReservation
 }) => {
-  const today = new Date().toISOString().split('T')[0];
-  const todayReadable = new Date().toLocaleDateString('en-US', {
-    weekday: 'long',
-    month: 'short',
-    day: 'numeric'
-  });
+  const [blockedDays, setBlockedDays] = useState<Set<string>>(new Set());
+  const [loadingBlockedDays, setLoadingBlockedDays] = useState(true);
 
-  const totalReservations = reservations.length;
-  const todayReservationsCount = reservations.filter(res => res.date === today).length;
+  useEffect(() => {
+    setLoadingBlockedDays(true);
+    const unsubscribe = getBlockedDays((days) => {
+      setBlockedDays(days);
+      setLoadingBlockedDays(false);
+    });
+    return () => unsubscribe();
+  }, []);
 
-  const upcomingReservationsCount = reservations.filter(res => {
-    const resDate = new Date(res.date);
-    resDate.setHours(0,0,0,0);
-    const currentDate = new Date(today);
-    currentDate.setHours(0,0,0,0);
-    return resDate > currentDate;
-  }).length;
+  const today = useMemo(() => new Date().toISOString().split('T')[0], []);
+  const todayReadable = useMemo(() => new Date().toLocaleDateString('en-US', {
+    weekday: 'long', month: 'short', day: 'numeric'
+  }), []);
 
-  const handleCancelClick = (id: string) => {
-    if (window.confirm('Are you sure you want to cancel this appointment?')) {
-      onDeleteReservation(id);
+  const totalReservationsCount = reservations.length;
+  const todayReservationsCount = useMemo(() => reservations.filter(res => res.date === today).length, [reservations, today]);
+  const upcomingReservationsCount = useMemo(() => reservations.filter(res => res.date > today).length, [reservations, today]);
+
+  const handleCancelClick = (reservation: Reservation) => {
+     const isDayBlocked = blockedDays.has(reservation.date);
+     const confirmationMessage = `Are you sure you want to cancel the appointment for ${reservation.name} on ${reservation.date} at ${reservation.time}?` +
+        (isDayBlocked ? "\n\n(Note: This day is currently blocked for new bookings.)" : "");
+    if (window.confirm(confirmationMessage)) {
+      if (reservation.id) {
+          onDeleteReservation(reservation.id);
+      } else {
+          console.error("Cannot delete reservation: ID is missing.", reservation);
+          alert("Error: Cannot delete reservation because its ID is missing.");
+      }
     }
   };
 
-  const sortedReservations = [...reservations].sort((a, b) => {
-    if (a.date !== b.date) {
-      return a.date.localeCompare(b.date);
+  const sortedReservations = useMemo(() => [...reservations].sort((a, b) => {
+    const dateComparison = a.date.localeCompare(b.date);
+    if (dateComparison !== 0) {
+      return dateComparison;
     }
-    const getTimeValue = (timeStr: string) => {
-      const hourMatch = timeStr.match(/(\d+):(\d+)\s*([AP]M)/i);
-      if (!hourMatch) return 0;
-      let hour = parseInt(hourMatch[1]);
-      const minute = parseInt(hourMatch[2]);
-      const ampm = hourMatch[3].toUpperCase();
-      if (ampm === 'PM' && hour < 12) hour += 12;
-      if (ampm === 'AM' && hour === 12) hour = 0;
-      return hour * 60 + minute;
-    };
     return getTimeValue(a.time) - getTimeValue(b.time);
-  });
+  }), [reservations]);
 
-  const formatPhoneNumberForTelLink = (phoneNumber: string) => {
+  const formatPhoneNumberForTelLink = (phoneNumber: string | undefined): string => {
+    if (!phoneNumber) return '';
     let cleaned = phoneNumber.replace(/\D/g, '');
-    if (cleaned.startsWith('0') && cleaned.length === 10) {
-      return `+972${cleaned.substring(1)}`;
-    }
-    if (cleaned.startsWith('972') && cleaned.length > 9) {
-        return `+${cleaned}`
-    }
-    if (cleaned.startsWith('+')) {
-        return cleaned;
-    }
+    if (cleaned.startsWith('05') && cleaned.length === 10) { return `+972${cleaned.substring(1)}`; }
+    if (cleaned.startsWith('5') && cleaned.length === 9) { return `+972${cleaned}`; }
+    if (cleaned.startsWith('972') && cleaned.length >= 12) { return `+${cleaned}`; }
+    if (cleaned.startsWith('+')) { return cleaned; }
     return cleaned;
   };
-
 
   return (
     <div className="admin-container">
       <div className="admin-header">
         <h1 className="admin-title">Admin Dashboard</h1>
-        <button className="back-link admin-signout-button" onClick={goBack}>
+        <button className="back-link admin-signout-button" onClick={goBack} aria-label="Sign out">
           Sign Out →
         </button>
       </div>
-
       <div className="stats-container">
         <div className="stat-card">
-          <div className="stat-value">{totalReservations}</div>
-          <div className="stat-label">Total Appointments</div>
+          <div className="stat-value">{totalReservationsCount}</div>
+          <div className="stat-label">Total Booked</div>
         </div>
         <div className="stat-card">
           <div className="stat-value">{todayReservationsCount}</div>
-          <div className="stat-label">Today's Appointments</div>
+          <div className="stat-label">Booked Today</div>
         </div>
         <div className="stat-card">
           <div className="stat-value">{upcomingReservationsCount}</div>
-          <div className="stat-label">Upcoming (After Today)</div>
+          <div className="stat-label">Booked Upcoming</div>
         </div>
       </div>
-
       <AdminNewsPublisher />
-
+      {loadingBlockedDays ? (
+          <div className="day-blocker-card">Loading Day Management...</div>
+      ) : (
+          <AdminDayBlocker
+              blockedDays={blockedDays}
+              onBlockDay={blockDay}
+              onUnblockDay={unblockDay}
+          />
+      )}
+      <AdminTimeSlotBlocker />
       <div className="reservations-card admin-appointments-table-card">
         <div className="section-header">
           <h2 className="section-title">All Appointments</h2>
@@ -104,56 +121,75 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         {sortedReservations.length === 0 ? (
           <div className="empty-state">
             <div className="empty-icon">📅</div>
-            <p>No appointments have been made yet.</p>
+            <p>No appointments have been booked yet.</p>
           </div>
         ) : (
-          <table className="reservation-table">
+          <table className="reservation-table" aria-label="Appointments List">
             <thead>
               <tr>
                 <th>Client Details</th>
                 <th>Appointment Date & Time</th>
+                <th>Status</th>
                 <th>Actions</th>
               </tr>
             </thead>
             <tbody>
-              {sortedReservations.map((res) => (
-                <tr key={res.id} className="reservation-row">
-                  <td className="client-details-cell">
-                    <div className="reservation-name">{res.name}</div>
-                    <div className="reservation-phone-subline">
-                      <a href={`tel:${formatPhoneNumberForTelLink(res.phone)}`} className="phone-link">
-                        {res.phone}
-                      </a>
-                    </div>
-                  </td>
-                  <td className="datetime-cell">
-                    <div>{new Date(res.date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}</div>
-                    <div className="reservation-time-subline">{res.time}</div>
-                  </td>
-                  <td className="actions-cell">
-                    <button
-                      className="action-button-small delete"
-                      onClick={() => res.id && handleCancelClick(res.id)}
-                    >
-                      Cancel
-                    </button>
-                  </td>
-                </tr>
-              ))}
+              {sortedReservations.map((res) => {
+                const isDayBlocked = blockedDays.has(res.date);
+                return (
+                    <tr key={res.id} className={`reservation-row ${isDayBlocked ? 'blocked-day-row' : ''}`}>
+                    <td className="client-details-cell">
+                        <div className="reservation-name">{res.name || 'Unknown Name'}</div>
+                        <div className="reservation-phone-subline">
+                        {res.phone ? (
+                            <a href={`tel:${formatPhoneNumberForTelLink(res.phone)}`} className="phone-link">
+                            {res.phone}
+                            </a>
+                        ) : ( 'No phone' )}
+                        </div>
+                    </td>
+                    <td className="datetime-cell">
+                        <div>{new Date(res.date + 'T00:00:00Z').toLocaleDateString('en-US', { timeZone: 'UTC', year: 'numeric', month: 'short', day: 'numeric' })}</div>
+                        <div className="reservation-time-subline">{res.time}</div>
+                    </td>
+                    <td className="status-cell">
+                        {isDayBlocked ? (
+                        <span className="status-indicator blocked" title="Bookings disabled for this day">Day Blocked</span>
+                        ) : (
+                        <span className="status-indicator active">Active</span>
+                        )}
+                    </td>
+                    <td className="actions-cell">
+                        <button
+                        className="action-button-small delete"
+                        onClick={() => handleCancelClick(res)}
+                        disabled={!res.id}
+                        aria-label={`Cancel appointment for ${res.name} on ${res.date}`}
+                        >
+                        Cancel
+                        </button>
+                    </td>
+                    </tr>
+                );
+               })}
             </tbody>
           </table>
         )}
       </div>
-
       <div className="reservations-card admin-today-summary-card">
         <div className="section-header">
           <h2 className="section-title">Today • {todayReadable}</h2>
+           {blockedDays.has(today) && <span className="status-indicator blocked">(Day Blocked)</span>}
         </div>
-        <p>
-          {todayReservationsCount === 0
-            ? "You have no appointments scheduled for today."
-            : `You have ${todayReservationsCount} appointment${todayReservationsCount > 1 ? 's' : ''} scheduled for today.`}
-        </p>
+         {blockedDays.has(today) ? (
+             <p>This day is blocked. New bookings are disabled. Appointments already booked for today are shown above.</p>
+         ) : (
+             <p>
+                {todayReservationsCount === 0
+                    ? "There are no appointments scheduled for today."
+                    : `There ${todayReservationsCount === 1 ? 'is' : 'are'} ${todayReservationsCount} appointment${todayReservationsCount !== 1 ? 's' : ''} scheduled for today.`}
+            </p>
+         )}
       </div>
     </div>
   );
