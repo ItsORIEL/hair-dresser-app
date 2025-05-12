@@ -2,19 +2,18 @@
 import React, { useState } from 'react';
 import './LoginPage.css';
 import { signInWithGoogle } from '../services/firebase-service';
-import { User } from 'firebase/auth';
+// We don't need User type here anymore if onAuthSuccess is removed
+// import { User } from 'firebase/auth';
 
-// Import the SVG path (Vite and CRA handle this by default,
-// giving you a URL string to the asset)
+// Import the SVG path
 import googleLogoUrl from '../assets/google-logo.svg';
 
 interface LoginPageProps {
-  onAuthSuccess: (user: User) => void;
+  // onAuthSuccess prop is removed
   setLoadingApp: (loading: boolean) => void;
 }
 
 export const LoginPage: React.FC<LoginPageProps> = ({
-  onAuthSuccess,
   setLoadingApp,
 }) => {
   const [authError, setAuthError] = useState<string | null>(null);
@@ -23,14 +22,15 @@ export const LoginPage: React.FC<LoginPageProps> = ({
     setLoadingApp(true);
     setAuthError(null);
     try {
-      const user = await signInWithGoogle();
-      onAuthSuccess(user);
+      // Call sign in, but don't need to call onAuthSuccess anymore
+      await signInWithGoogle();
+      // The onAuthStateChanged listener in App.tsx will handle the successful login
     } catch (error: any) {
       console.error("Google login failed:", error);
       setAuthError(error.message || 'Failed to sign in with Google. Please try again.');
-    } finally {
-      setLoadingApp(false);
+      setLoadingApp(false); // Ensure loading stops on error
     }
+    // No finally block needed here, as listener handles loading state on success
   };
 
   return (
@@ -48,7 +48,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({
           className="login-button google-button"
           onClick={handleGoogleLogin}
         >
-          {/* Use an img tag with the imported URL */}
           <img
             src={googleLogoUrl}
             alt="Google G Logo"
@@ -58,7 +57,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
         </button>
 
         {authError && (
-          <p style={{ color: 'red', fontSize: '0.8rem', marginTop: '20px' }}>
+          <p style={{ color: 'red', fontSize: '0.8rem', marginTop: '20px' }} role="alert">
             {authError}
           </p>
         )}

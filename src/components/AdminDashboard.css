@@ -89,12 +89,14 @@
   letter-spacing: 0.5px;
 }
 
-.reservations-card { /* General card for sections */
+/* General card styles applying to multiple admin sections */
+.reservations-card, .news-publisher-card, .day-blocker-card {
   background-color: var(--card-background, #ffffff);
   border-radius: 12px;
   padding: 24px;
   box-shadow: var(--shadow, 0 4px 12px rgba(0, 0, 0, 0.05));
-  margin-bottom: 30px;
+  margin-bottom: 30px; /* Consistent margin */
+  margin-top: 30px; /* Consistent margin */
 }
 .admin-appointments-table-card, .admin-today-summary-card { /* Specific margin for these cards */
   margin-top: 30px;
@@ -122,7 +124,7 @@
 
 .reservation-table {
   width: 100%;
-  min-width: 550px;
+  min-width: 650px; /* Increased min-width for Status column */
   border-collapse: collapse;
 }
 
@@ -131,7 +133,7 @@
   text-align: left;
   padding: 14px 16px;
   border-bottom: 1px solid var(--border-color, #eaeaea);
-  vertical-align: top;
+  vertical-align: middle; /* Align content vertically */
 }
 
 .reservation-table th {
@@ -143,7 +145,7 @@
   z-index: 10;
 }
 
-.reservation-row:hover {
+.reservation-row:hover:not(.blocked-day-row) { /* Don't highlight blocked rows on hover */
   background-color: rgba(74, 144, 226, 0.05);
 }
 
@@ -197,7 +199,7 @@
   line-height: 1.2;
 }
 
-.action-button-small:hover {
+.action-button-small:hover:not(:disabled) {
   background-color: var(--secondary-color, #4a90e2);
   color: white;
 }
@@ -207,18 +209,21 @@
   border-color: var(--primary-color, #ff3366);
 }
 
-.action-button-small.delete:hover {
+.action-button-small.delete:hover:not(:disabled) {
   background-color: var(--primary-color, #ff3366);
   color: white;
 }
+.action-button-small:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    border-color: #ccc;
+    color: #ccc;
+}
 
-/* Styles for AdminNewsPublisher Component */
+
+/* --- Styles for AdminNewsPublisher Component --- */
 .news-publisher-card {
-  background-color: var(--card-background, #ffffff);
-  border-radius: 12px;
-  padding: 24px;
-  box-shadow: var(--shadow, 0 4px 12px rgba(0, 0, 0, 0.05));
-  margin-top: 30px; /* Default margin from AdminDashboard */
+  /* Uses general card styles */
 }
 
 .news-publisher-title { /* Uses .section-title */
@@ -278,10 +283,216 @@
 }
 
 
+/* --- Styles for AdminDayBlocker Component --- */
+
+.day-blocker-card {
+  /* Inherits general card styles */
+}
+.day-blocker-description {
+  font-size: 0.9em;
+  color: var(--text-secondary);
+  margin-bottom: 20px;
+  margin-top: -15px; /* Adjust spacing below title */
+}
+
+
+.day-blocker-title { /* Uses .section-title */
+  margin-bottom: 20px;
+}
+
+.day-blocker-controls {
+  display: flex;
+  flex-wrap: wrap; /* Allow wrapping on small screens */
+  align-items: center;
+  gap: 15px;
+  margin-bottom: 20px;
+}
+
+.day-blocker-date-input {
+  padding: 10px 12px;
+  border: 1px solid var(--border-color, #eaeaea);
+  border-radius: 8px;
+  font-size: 1em;
+  flex-grow: 1; /* Take available space */
+  min-width: 180px; /* Ensure decent width for date */
+  box-sizing: border-box;
+}
+.day-blocker-date-input:focus {
+  border-color: var(--primary-color, #ff3366);
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(255, 51, 102, 0.2);
+}
+
+
+.day-blocker-buttons {
+  display: flex;
+  gap: 10px;
+}
+
+.day-blocker-button {
+  padding: 10px 18px;
+  border: none;
+  border-radius: 25px;
+  cursor: pointer;
+  font-size: 0.9em;
+  font-weight: 500;
+  transition: background-color 0.2s, opacity 0.2s;
+  white-space: nowrap; /* Prevent text wrapping */
+}
+
+.day-blocker-button.block {
+  background-color: var(--primary-color, #ff3366);
+  color: white;
+}
+.day-blocker-button.block:hover:not(:disabled) {
+  background-color: #e62958; /* Darker primary */
+}
+
+.day-blocker-button.unblock {
+  background-color: var(--secondary-color, #4a90e2);
+  color: white;
+}
+.day-blocker-button.unblock:hover:not(:disabled) {
+  background-color: #357ABD; /* Darker secondary */
+}
+
+
+.day-blocker-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  background-color: #cccccc;
+}
+
+.day-blocker-status {
+  margin-top: 15px;
+  font-size: 0.9em;
+  font-weight: 500;
+  text-align: center;
+  min-height: 1.2em; /* Reserve space */
+}
+.day-blocker-status.success {
+  color: green;
+}
+.day-blocker-status.error {
+  color: red;
+}
+
+
+.blocked-days-list {
+  margin-top: 25px;
+  border-top: 1px solid var(--border-color, #eaeaea);
+  padding-top: 20px;
+}
+
+.blocked-list-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-primary, #2c3e50);
+  margin-bottom: 15px;
+}
+
+.blocked-days-list ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  max-height: 250px; /* Allow scrolling if list gets long */
+  overflow-y: auto;
+  border: 1px solid var(--border-color, #eaeaea); /* Optional border around list */
+  border-radius: 8px;
+}
+
+.blocked-list-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 15px; /* Increased padding */
+  border-bottom: 1px solid #f0f0f0;
+  font-size: 0.95em;
+}
+.blocked-list-item:last-child {
+  border-bottom: none;
+}
+
+.blocked-list-item span {
+  color: var(--text-primary, #333); /* Make date more prominent */
+  font-weight: 500;
+}
+
+.unblock-list-button {
+  background-color: transparent;
+  color: var(--secondary-color, #4a90e2);
+  border: 1px solid var(--secondary-color, #4a90e2);
+  border-radius: 20px;
+  padding: 4px 12px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-left: 10px;
+  flex-shrink: 0; /* Prevent button shrinking */
+}
+
+.unblock-list-button:hover:not(:disabled) {
+  background-color: var(--secondary-color, #4a90e2);
+  color: white;
+}
+.unblock-list-button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    border-color: #ccc;
+    color: #ccc;
+}
+
+.blocked-list-empty {
+  color: var(--text-secondary, #7f8c8d);
+  font-style: italic;
+  font-size: 0.9em;
+  padding: 15px;
+  text-align: center;
+}
+
+/* --- Styles for Appointment Table Status Indicators --- */
+.status-cell {
+  text-align: center; /* Center align status */
+  white-space: nowrap;
+}
+.status-indicator {
+  padding: 4px 10px; /* Adjusted padding */
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 600; /* Bolder text */
+  display: inline-block;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.status-indicator.active {
+  background-color: #e6f7ff; /* Lighter blue */
+  color: #1890ff; /* Standard blue */
+  border: 1px solid #91d5ff; /* Blue border */
+}
+.status-indicator.blocked {
+  background-color: #fff1f0; /* Lighter red */
+  color: #ff4d4f; /* Standard red */
+  border: 1px solid #ffa39e; /* Red border */
+}
+.reservation-row.blocked-day-row {
+  background-color: #fafafa !important; /* Override hover, ensure it's visible */
+  opacity: 0.65; /* Slightly more faded */
+}
+.reservation-row.blocked-day-row td {
+   /* Optional: Italicize text in blocked rows */
+   /* font-style: italic; */
+}
+.admin-today-summary-card .status-indicator.blocked {
+    margin-left: 10px;
+    vertical-align: middle;
+}
+
+
 /* --- Responsive Adjustments --- */
 @media (max-width: 768px) {
   .reservation-table {
-    min-width: 450px;
+    min-width: 550px; /* Adjust if still too wide */
     font-size: 0.9rem;
   }
   .reservation-table th,
@@ -297,10 +508,10 @@
     margin-bottom: 10px;
     margin-right: 0;
   }
-  .back-link.admin-signout-button { /* Ensure specificity for admin signout button */
+  .back-link.admin-signout-button {
     margin-left: auto;
   }
-  .reservations-card, .news-publisher-card { /* Apply to news card too */
+  .reservations-card, .news-publisher-card, .day-blocker-card {
     padding: 15px 10px;
   }
   .reservation-table {
@@ -310,7 +521,11 @@
   .reservation-table th,
   .reservation-table td {
     padding: 10px 8px;
+    white-space: normal; /* Allow wrapping in cells */
   }
+   .status-cell, .actions-cell {
+       white-space: nowrap; /* Keep status/actions nowrap */
+   }
   .client-details-cell .reservation-name,
   .datetime-cell div:first-child {
     margin-bottom: 2px;
@@ -322,5 +537,30 @@
   .news-publisher-button {
     padding: 10px 20px;
     font-size: 0.9em;
+  }
+
+  /* Day Blocker Responsive */
+   .day-blocker-controls {
+    flex-direction: column; /* Stack controls vertically */
+    align-items: stretch; /* Make controls full width */
+  }
+  .day-blocker-date-input {
+    width: 100%; /* Full width */
+  }
+  .day-blocker-buttons {
+    width: 100%;
+    justify-content: space-around; /* Space out buttons */
+  }
+  .day-blocker-button {
+     flex-grow: 1; /* Make buttons share space */
+     padding: 12px 10px; /* Adjust padding */
+  }
+  .blocked-list-item {
+    font-size: 0.9em;
+    padding: 8px 10px;
+  }
+  .unblock-list-button {
+    padding: 4px 8px;
+    font-size: 0.75rem;
   }
 }

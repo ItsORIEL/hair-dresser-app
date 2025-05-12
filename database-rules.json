@@ -3,19 +3,34 @@
     "reservations/{reservationId}": {
       ".read": "auth != null",
       ".write": "auth != null",
-      ".delete": "request.auth.uid == resource.data.userId || request.auth.uid == 'X6IZj1LMNKfZIZlwQud23U5mzhC3'"
+      ".delete": "request.auth.uid == resource.data.userId || request.auth.uid == 'X6IZj1LMNKfZIZlwQud23U5mzhC3'",
+      ".validate": "newData.hasChildren(['name', 'phone', 'time', 'date', 'userId', 'id']) && newData.child('date').isString() && newData.child('date').val().matches(/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/) && newData.child('time').isString() && newData.child('userId').isString() && newData.child('id').isString()",
+       ".indexOn": ["userId", "date"]
     },
-    "users/{userId}": {
-      ".read": "auth != null && auth.uid == userId",
-      ".write": "auth != null && auth.uid == userId"
+    "userProfiles/{userId}": {
+      ".read": "auth != null && (auth.uid == userId || request.auth.uid == 'X6IZj1LMNKfZIZlwQud23U5mzhC3')",
+      ".write": "auth != null && auth.uid == userId",
+      ".validate": "newData.hasChildren(['uid', 'displayName', 'email']) && newData.child('uid').val() == $userId"
     },
     "barberNews/{newsId}": {
       ".read": "true",
-      ".write": "request.auth.uid == 'X6IZj1LMNKfZIZlwQud23U5mzhC3'"
+      ".write": "request.auth.uid == 'X6IZj1LMNKfZIZlwQud23U5mzhC3'",
+      ".validate": "newData.hasChildren(['message', 'timestamp']) && newData.child('message').isString() && newData.child('timestamp').isNumber()",
+       ".indexOn": ["timestamp"]
     },
     "settings/adminGeneralSettings": {
       ".read": "auth != null",
       ".write": "request.auth.uid == 'X6IZj1LMNKfZIZlwQud23U5mzhC3'"
+    },
+    "blockedDays": {
+      ".read": "auth != null",
+      ".write": "request.auth.uid == 'X6IZj1LMNKfZIZlwQud23U5mzhC3'",
+      "$date": {
+        ".validate": "$date.matches(/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/)",
+        "newData": {
+          ".validate": "newData.isBoolean() && newData.val() === true"
+        }
+      }
     }
   }
 }
