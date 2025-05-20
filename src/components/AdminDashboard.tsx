@@ -23,6 +23,17 @@ const getTimeValue = (timeStr: string): number => {
     return hours * 60 + minutes;
 };
 
+const formatDateToDDMMYYYY = (dateString: string): string => {
+  const date = new Date(dateString + 'T00:00:00Z');
+  return date.toLocaleDateString('en-GB', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    timeZone: 'UTC', 
+  });
+};
+
+
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   reservations,
   goBack,
@@ -40,18 +51,32 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     return () => unsubscribe();
   }, []);
 
-  const today = useMemo(() => new Date().toISOString().split('T')[0], []);
-  const todayReadable = useMemo(() => new Date().toLocaleDateString('en-US', {
-    weekday: 'long', month: 'short', day: 'numeric'
-  }), []);
+  const todayISO = useMemo(() => new Date().toISOString().split('T')[0], []);
 
-  const totalReservationsCount = reservations.length;
-  const todayReservationsCount = useMemo(() => reservations.filter(res => res.date === today).length, [reservations, today]);
-  const upcomingReservationsCount = useMemo(() => reservations.filter(res => res.date > today).length, [reservations, today]);
+  const todayReadable = useMemo(() => {
+    const todayDate = new Date();
+    return todayDate.toLocaleDateString('en-GB', {
+      day: '2-digit', month: '2-digit', year: 'numeric'
+    });
+  }, []);
+
+
+  const yesterdayISO = useMemo(() => {
+    const y = new Date();
+    y.setDate(y.getDate() - 1);
+    return y.toISOString().split('T')[0];
+  }, []);
+
+  // REMOVED: totalReservationsCount
+  // const totalReservationsCount = reservations.length; 
+
+  const todayReservationsCount = useMemo(() => reservations.filter(res => res.date === todayISO).length, [reservations, todayISO]);
+  const upcomingReservationsCount = useMemo(() => reservations.filter(res => res.date > todayISO).length, [reservations, todayISO]);
 
   const handleCancelClick = (reservation: Reservation) => {
      const isDayBlocked = blockedDays.has(reservation.date);
-     const confirmationMessage = `Are you sure you want to cancel the appointment for ${reservation.name} on ${reservation.date} at ${reservation.time}?` +
+     const displayDate = formatDateToDDMMYYYY(reservation.date);
+     const confirmationMessage = `Are you sure you want to cancel the appointment for ${reservation.name} on ${displayDate} at ${reservation.time}?` +
         (isDayBlocked ? "\n\n(Note: This day is currently blocked for new bookings.)" : "");
     if (window.confirm(confirmationMessage)) {
       if (reservation.id) {
@@ -63,13 +88,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     }
   };
 
-  const sortedReservations = useMemo(() => [...reservations].sort((a, b) => {
-    const dateComparison = a.date.localeCompare(b.date);
-    if (dateComparison !== 0) {
-      return dateComparison;
-    }
-    return getTimeValue(a.time) - getTimeValue(b.time);
-  }), [reservations]);
+  const sortedReservations = useMemo(() => {
+    return reservations
+      .filter(res => res.date >= yesterdayISO) 
+      .sort((a, b) => {
+        const dateComparison = a.date.localeCompare(b.date);
+        if (dateComparison !== 0) {
+          return dateComparison;
+        }
+        return getTimeValue(a.time) - getTimeValue(b.time);
+      });
+  }, [reservations, yesterdayISO]); 
 
   const formatPhoneNumberForTelLink = (phoneNumber: string | undefined): string => {
     if (!phoneNumber) return '';
@@ -90,10 +119,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         </button>
       </div>
       <div className="stats-container">
+        {/* REMOVED: "Total Booked (All Time)" stat card */}
+        {/* 
         <div className="stat-card">
           <div className="stat-value">{totalReservationsCount}</div>
-          <div className="stat-label">Total Booked</div>
-        </div>
+          <div className="stat-label">Total Booked (All Time)</div>
+        </div> 
+        */}
         <div className="stat-card">
           <div className="stat-value">{todayReservationsCount}</div>
           <div className="stat-label">Booked Today</div>
@@ -116,12 +148,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       <AdminTimeSlotBlocker />
       <div className="reservations-card admin-appointments-table-card">
         <div className="section-header">
-          <h2 className="section-title">All Appointments</h2>
+          <h2 className="section-title">Appointments (Yesterday, Today & Upcoming)</h2>
         </div>
         {sortedReservations.length === 0 ? (
           <div className="empty-state">
             <div className="empty-icon">📅</div>
-            <p>No appointments have been booked yet.</p>
+            <p>No relevant appointments (yesterday, today, or upcoming) found.</p>
           </div>
         ) : (
           <table className="reservation-table" aria-label="Appointments List">
@@ -149,7 +181,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         </div>
                     </td>
                     <td className="datetime-cell">
-                        <div>{new Date(res.date + 'T00:00:00Z').toLocaleDateString('en-US', { timeZone: 'UTC', year: 'numeric', month: 'short', day: 'numeric' })}</div>
+                        <div>{formatDateToDDMMYYYY(res.date)}</div>
                         <div className="reservation-time-subline">{res.time}</div>
                     </td>
                     <td className="status-cell">
@@ -164,7 +196,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         className="action-button-small delete"
                         onClick={() => handleCancelClick(res)}
                         disabled={!res.id}
-                        aria-label={`Cancel appointment for ${res.name} on ${res.date}`}
+                        aria-label={`Cancel appointment for ${res.name} on ${formatDateToDDMMYYYY(res.date)}`}
                         >
                         Cancel
                         </button>
@@ -179,9 +211,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       <div className="reservations-card admin-today-summary-card">
         <div className="section-header">
           <h2 className="section-title">Today • {todayReadable}</h2>
-           {blockedDays.has(today) && <span className="status-indicator blocked">(Day Blocked)</span>}
+           {blockedDays.has(todayISO) && <span className="status-indicator blocked">(Day Blocked)</span>}
         </div>
-         {blockedDays.has(today) ? (
+         {blockedDays.has(todayISO) ? (
              <p>This day is blocked. New bookings are disabled. Appointments already booked for today are shown above.</p>
          ) : (
              <p>

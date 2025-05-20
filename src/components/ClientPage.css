@@ -250,41 +250,74 @@ body {
 /* --- Time Grid --- */
 .time-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); /* Ensure min-width is sufficient */
   gap: 12px;
   margin-bottom: 24px;
 }
 .time-button {
   border: 1px solid var(--border-color);
   border-radius: 12px;
-  padding: 14px 8px;
+  padding: 10px 8px; /* Adjusted padding for two lines */
   text-align: center;
   background-color: var(--card-background);
   transition: all 0.2s;
   cursor: pointer;
-  font-size: 0.9rem;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-  color: var(--text-primary); /* Default text color */
+  color: var(--text-primary); /* Default text color for time part */
+  
+  /* Flexbox for vertical layout */
+  display: flex;
+  flex-direction: column;
+  justify-content: center; /* Center content vertically */
+  align-items: center; /* Center content horizontally */
+  min-height: 60px; /* Ensure a consistent minimum height */
+  box-sizing: border-box; /* Include padding and border in height */
+  line-height: 1.3; /* Adjust line height for better spacing */
 }
+
+/* Styles for the time display line */
+.time-button-time-display {
+  font-size: 0.9rem;
+  font-weight: 500;
+  display: block;
+  color: inherit; /* Inherit base color from .time-button */
+}
+
+/* Styles for the status display line */
+.time-button-status-display {
+  font-size: 0.7rem;
+  color: var(--text-secondary); /* Default subtle color for status */
+  display: block;
+  margin-top: 2px;
+  min-height: 0.8em; /* Reserve space */
+  font-style: italic;
+}
+
+/* Hover and Focus States */
 .time-button:focus {
     outline: 2px solid var(--secondary-color);
     outline-offset: 1px;
 }
 .time-button:hover:not(:disabled) {
   border-color: var(--secondary-color);
-  color: var(--secondary-color);
   transform: translateY(-1px);
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.08);
 }
+.time-button:hover:not(:disabled) .time-button-time-display {
+  /* Optionally change time color on hover if desired, e.g., color: var(--secondary-color); */
+}
+.time-button:hover:not(:disabled) .time-button-status-display {
+  /* Optionally change status color on hover if desired */
+}
+
 .time-button:active:not(:disabled) {
   transform: translateY(0);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
 }
 
-/* Disabled/Booked/Past Time Styles */
+/* Disabled/Booked/Past Time Styles (General) */
 .time-button.booked, .time-button:disabled {
   background-color: var(--disabled-bg);
-  color: var(--disabled-text);
   cursor: not-allowed;
   border-color: var(--disabled-border);
   box-shadow: none;
@@ -294,37 +327,65 @@ body {
 .time-button.booked:focus, .time-button:disabled:focus {
     outline: none;
 }
+.time-button.booked .time-button-time-display,
+.time-button:disabled .time-button-time-display {
+    color: var(--disabled-text); /* Dim time text */
+}
+.time-button.booked .time-button-status-display,
+.time-button:disabled .time-button-status-display {
+    color: var(--disabled-text); /* Dim status text */
+    opacity: 0.8;
+}
 
 /* Style for Admin Blocked Slot */
-.time-button.blocked-slot {
-    background-color: #ffebee; /* Light pink/red background */
-    color: #c62828; /* Darker red text */
-    border-color: #ef9a9a; /* Lighter red border */
-    font-weight: bold;
-    /* text-decoration: line-through; */ /* Optional */
-}
-.time-button.blocked-slot:hover {
-    /* Ensure hover doesn't change appearance significantly */
-    background-color: #ffebee;
+.time-button.admin-blocked-slot { /* This is a type of 'booked' */
+    background-color: #ffebee; 
     border-color: #ef9a9a;
-    color: #c62828;
 }
-
+.time-button.admin-blocked-slot:hover {
+    background-color: #ffebee; /* Prevent hover change */
+    border-color: #ef9a9a;
+}
+.time-button.admin-blocked-slot .time-button-time-display {
+  color: #c62828;
+  font-weight: bold;
+}
+.time-button.admin-blocked-slot .time-button-status-display {
+  color: #c62828; /* Darker red text for status */
+  font-weight: normal; /* Or bold if preferred */
+  font-style: normal; /* Override italic if needed */
+}
 
 /* Specific Time Button States */
 .time-button.your-reservation {
   background-color: #e8f4ff; /* Light blue */
-  color: var(--secondary-color);
   border-color: var(--secondary-color);
-  font-weight: 600;
   box-shadow: 0 1px 4px rgba(74, 144, 226, 0.2);
 }
+.time-button.your-reservation .time-button-time-display {
+  color: var(--secondary-color);
+  font-weight: 600;
+}
+.time-button.your-reservation .time-button-status-display {
+  color: var(--secondary-color);
+  font-weight: 500;
+  font-style: normal;
+}
+
 .time-button.selected { /* Highlighted before confirmation */
   background-color: rgba(74, 144, 226, 0.15);
   border-color: var(--secondary-color);
+}
+.time-button.selected .time-button-time-display {
   color: var(--secondary-color);
   font-weight: 500;
 }
+.time-button.selected .time-button-status-display {
+  color: var(--secondary-color);
+  font-weight: 500;
+  font-style: normal;
+}
+
 
 /* Message when a day is blocked */
 .day-blocked-message {
@@ -376,21 +437,6 @@ body {
   box-shadow: none;
   transform: none;
   opacity: 0.7;
-}
-
-/* Style for Admin Blocked Slot */
-.time-button.blocked-slot {
-  background-color: #ffebee; /* Light pink/red background */
-  color: #c62828; /* Darker red text */
-  border-color: #ef9a9a; /* Lighter red border */
-  font-weight: bold;
-  /* text-decoration: line-through; */ /* Optional */
-}
-.time-button.blocked-slot:hover {
-  /* Ensure hover doesn't change appearance significantly */
-  background-color: #ffebee;
-  border-color: #ef9a9a;
-  color: #c62828;
 }
 
 /* Cancel Button */
@@ -458,12 +504,18 @@ body {
   .blocked-indicator-client { font-size: 0.65rem; }
 
   .time-grid {
-    grid-template-columns: repeat(auto-fill, minmax(85px, 1fr)); /* Adjust minmax */
+    grid-template-columns: repeat(auto-fill, minmax(85px, 1fr)); /* Adjust minmax if needed */
     gap: 10px;
   }
    .time-button {
-       font-size: 0.85rem;
-       padding: 12px 6px;
+       padding: 8px 6px; /* Adjust padding if needed */
+       min-height: 55px; /* Adjust min-height for smaller screens */
+   }
+   .time-button-time-display {
+       font-size: 0.8rem;
+   }
+   .time-button-status-display {
+       font-size: 0.65rem;
    }
   .action-button-small {
     padding: 6px 12px;
