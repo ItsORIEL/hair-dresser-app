@@ -4,27 +4,29 @@ import { LoginPage } from './components/LoginPage';
 import { ClientPage } from './components/ClientPage';
 import { AdminDashboard } from './components/AdminDashboard';
 import './App.css'; // Global styles
-import { authInstance } from './firebase'; // Import authInstance
+import { authInstance } from './firebase'; 
 import {
   getReservations, createReservation, deleteReservation,
   getUserReservationForDate, isTimeSlotAvailable, Reservation,
   saveUserPhoneNumber, getUserPhoneNumber,
   getLatestBarberNews, BarberNews,
-  signOut, onAuthStateChanged, // Named import is correct
+  signOut, onAuthStateChanged, 
   getBlockedDays,
   getBlockedTimeSlots, BlockedTimeSlotsMap
 } from './services/firebase-service';
 import { User } from 'firebase/auth';
 
-const ADMIN_UID = 'X6IZj1LMNKfZIZlwQud23U5mzhC3';
+const ADMIN_UID = 's'; 
 
-const getCurrentDate = (offset: number = 0): string => {
+const SHOW_FRIDAYS_BY_DEFAULT = false; 
+const SHOW_SATURDAYS_BY_DEFAULT = false; 
+
+const getCurrentDateISO = (offset: number = 0): string => { 
   const today = new Date();
   today.setDate(today.getDate() + offset);
   return today.toISOString().split('T')[0];
 };
 
-// --- Phone Input Modal Component ---
 interface PhoneInputProps {
   onSubmit: (phone: string) => void;
   onCancel?: () => void;
@@ -40,25 +42,24 @@ const PhoneInputModal: React.FC<PhoneInputProps> = ({ onSubmit, onCancel, curren
       if (cleanedPhone.startsWith('972')) { cleanedPhone = cleanedPhone.substring(3); }
       if (!israeliPhoneRegex.test(cleanedPhone)) {
         if (cleanedPhone.startsWith('5') && cleanedPhone.length === 9) { /* Allow normalization */ }
-        else { setError('Please enter a valid Israeli mobile number (e.g., 501234567 or 0501234567).'); return; }
+        else { setError('יש להזין מספר נייד ישראלי תקין (לדוגמה: 0501234567 או 501234567).'); return; }
       }
       const normalizedPhoneForDB = cleanedPhone.startsWith('5') && cleanedPhone.length === 9 ? '0' + cleanedPhone : cleanedPhone;
-      if (!/^(05\d{8})$/.test(normalizedPhoneForDB)) { setError('Invalid phone number format after normalization.'); return; }
+      if (!/^(05\d{8})$/.test(normalizedPhoneForDB)) { setError('פורמט מספר טלפון לא תקין לאחר נורמליזציה.'); return; }
       onSubmit(normalizedPhoneForDB); setError('');
     };
     return (
       <div className="modal-overlay">
         <div className="modal-content phone-input-modal-content">
-          <h3>{isUpdating ? "Update Your Phone Number" : "Please Enter Your Phone Number"}</h3>
-          <p className="modal-subtitle">This will be used for your reservations.</p>
-          <div className="phone-input-container-modal"> <span className="phone-prefix-modal">+972</span> <input type="tel" value={phoneInput} onChange={(e) => setPhoneInput(e.target.value.replace(/\D/g, ''))} placeholder="5X XXX XXXX" className="phone-actual-input-modal" maxLength={10} aria-required="true" aria-label="Mobile phone number (5X XXX XXXX)" /> </div>
+          <h3>{isUpdating ? "עדכן את מספר הטלפון שלך" : "אנא הזן את מספר הטלפון שלך"}</h3>
+          <p className="modal-subtitle">הוא ישמש עבור ההזמנות שלך.</p>
+          <div className="phone-input-container-modal"> <span className="phone-prefix-modal">+972</span> <input type="tel" value={phoneInput} onChange={(e) => setPhoneInput(e.target.value.replace(/\D/g, ''))} placeholder="5X XXX XXXX" className="phone-actual-input-modal" maxLength={10} aria-required="true" aria-label="מספר טלפון נייד (לדוגמה 501234567)" /> </div>
           {error && <p className="modal-error" role="alert">{error}</p>}
-          <div className="modal-actions"> <button onClick={handleSubmit} className="modal-button primary"> {isUpdating ? "Update" : "Save Phone Number"} </button> {onCancel && ( <button onClick={onCancel} className="modal-button secondary"> Cancel </button> )} </div>
+          <div className="modal-actions"> <button onClick={handleSubmit} className="modal-button primary"> {isUpdating ? "עדכן" : "שמור מספר טלפון"} </button> {onCancel && ( <button onClick={onCancel} className="modal-button secondary"> ביטול </button> )} </div>
         </div>
       </div>
     );
 };
-// --- End Phone Input Modal ---
 
 const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -68,174 +69,209 @@ const App: React.FC = () => {
   const [latestNews, setLatestNews] = useState<BarberNews | null>(null);
   const [blockedDays, setBlockedDays] = useState<Set<string>>(new Set());
   const [blockedTimeSlots, setBlockedTimeSlots] = useState<BlockedTimeSlotsMap>(new Map());
-  const [selectedDate, setSelectedDate] = useState<string>(getCurrentDate());
+  const [selectedDate, setSelectedDate] = useState<string>(() => getCurrentDateISO()); 
   const [loading, setLoading] = useState<boolean>(true);
   const [showPhoneUpdateModal, setShowPhoneUpdateModal] = useState(false);
+
+  const todayISOString = useMemo(() => getCurrentDateISO(), []);
 
   const handleSignOut = useCallback(async () => {
     setLoading(true);
     try { await signOut(); }
-    catch (error) { console.error("App: Sign out failed:", error); alert("Sign out failed."); setLoading(false); }
+    catch (error) { console.error("App: Sign out failed:", error); alert("ההתנתקות נכשלה."); setLoading(false); }
   }, []);
 
   useEffect(() => {
-    // --- Auth Listener ---
-    // ***** Pass authInstance as the first argument *****
     const unsubscribeAuth = onAuthStateChanged(authInstance, async (userAuth) => {
       setCurrentUser(userAuth);
-      let currentPage = page;
       if (userAuth) {
         try {
           const phone = await getUserPhoneNumber(userAuth.uid);
           setUserPhone(phone);
-          if (userAuth.uid === ADMIN_UID) { currentPage = 'admin'; }
-          else if (phone) { currentPage = 'client'; }
-          else { currentPage = 'get_phone'; }
-          setPage(currentPage);
+          if (userAuth.uid === ADMIN_UID) setPage('admin');
+          else if (phone) setPage('client');
+          else setPage('get_phone');
         } catch (error) {
-          console.error("App: Error during post-auth setup:", error);
-          alert("Error setting up session.");
-          await handleSignOut();
-          currentPage = 'login';
-          setPage(currentPage);
+          console.error("App: Error post-auth setup:", error); alert("שגיאה בהגדרת החיבור.");
+          await handleSignOut(); setPage('login');
         }
       } else {
-        setCurrentUser(null); setUserPhone(undefined); setReservations([]);
-        currentPage = 'login'; setPage(currentPage);
+        setCurrentUser(null); setUserPhone(undefined); setReservations([]); setPage('login');
       }
       setLoading(false);
     });
 
-    // --- Data Listeners ---
     let unsubscribeReservations: (() => void) | null = null;
-    if (currentUser) {
-      unsubscribeReservations = getReservations(setReservations);
-    }
-
+    if (currentUser) { unsubscribeReservations = getReservations(setReservations); }
     const unsubscribeBlockedDays = getBlockedDays(setBlockedDays);
     const unsubscribeNews = getLatestBarberNews(setLatestNews);
     const unsubscribeBlockedTimeSlots = getBlockedTimeSlots(setBlockedTimeSlots);
 
-    // --- Cleanup Function ---
     return () => {
-      unsubscribeAuth();
-      unsubscribeBlockedDays();
-      unsubscribeNews();
-      unsubscribeBlockedTimeSlots();
-      const cleanupReservations = unsubscribeReservations;
-      if (typeof cleanupReservations === 'function') { cleanupReservations(); }
+      unsubscribeAuth(); unsubscribeBlockedDays(); unsubscribeNews(); unsubscribeBlockedTimeSlots();
+      if (unsubscribeReservations) unsubscribeReservations();
     };
-  }, [currentUser, handleSignOut]); // Dependency on currentUser is correct here
+  }, [currentUser, handleSignOut]);
 
   const handlePhoneSubmit = useCallback(async (phone: string) => {
-    if (!currentUser) return;
-    setLoading(true);
+    if (!currentUser) return; setLoading(true);
     try {
-      await saveUserPhoneNumber(currentUser.uid, phone, currentUser.displayName || "User", currentUser.email);
+      await saveUserPhoneNumber(currentUser.uid, phone, currentUser.displayName || "משתמש", currentUser.email);
       setUserPhone(phone);
-      if (currentUser.uid !== ADMIN_UID) { setPage('client'); } else { setPage('admin'); }
+      if (currentUser.uid !== ADMIN_UID) setPage('client'); else setPage('admin');
       setShowPhoneUpdateModal(false);
-    } catch (error) { console.error("App: Error saving phone number:", error); alert("Failed to save phone number.");
+    } catch (error) { console.error("App: Error saving phone:", error); alert("שמירת מספר הטלפון נכשלה.");
     } finally { setLoading(false); }
   }, [currentUser]);
 
-  const generateNextFiveDays = useCallback(() => {
-      const daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-      const availableDates: { day: string, date: string, fullDate: string }[] = [];
-      let count = 0; let offset = 0; const todayStr = getCurrentDate();
+  const rawGenerateNextFiveDays = useCallback(() => {
+      // console.log(`%cApp.tsx: rawGenerateNextFiveDays. Today: ${todayISOString}. Fri Default: ${SHOW_FRIDAYS_BY_DEFAULT}, Sat Default: ${SHOW_SATURDAYS_BY_DEFAULT}`, "color: blue; font-weight: bold;");
+      // console.log("Current blockedDays:", blockedDays);
+      const daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']; // English for logic, Hebrew display handled in ClientPage
+      const newAvailableDates: { day: string, date: string, fullDate: string }[] = [];
+      let count = 0; let offset = 0;
+
       while (count < 5 && offset < 30) {
-        const date = new Date(); date.setDate(date.getDate() + offset);
-        const dayIndex = date.getDay(); const fullDateStr = date.toISOString().split('T')[0];
-        const isPast = fullDateStr < todayStr; const isSunday = dayIndex === 0;
-        const isBlocked = blockedDays.has(fullDateStr);
-        if (!isPast && !isSunday && !isBlocked) {
-            availableDates.push({ day: daysOfWeek[dayIndex], date: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), fullDate: fullDateStr });
+        const dateCandidate = new Date(); 
+        dateCandidate.setDate(dateCandidate.getDate() + offset); 
+        const dayIndex = dateCandidate.getDay(); 
+        const fullDateStr = dateCandidate.toISOString().split('T')[0];
+        
+        const isPast = fullDateStr < todayISOString;
+        const isAdminBlocked = blockedDays.has(fullDateStr);
+        
+        let skipDay = false;
+        // let skipReason = ''; // For detailed logging if needed
+
+        if (isPast) { skipDay = true; /* skipReason += 'Past '; */ }
+        if (dayIndex === 5 && !SHOW_FRIDAYS_BY_DEFAULT) { skipDay = true; /* skipReason += 'Friday (Default Off) '; */ }
+        if (dayIndex === 6 && !SHOW_SATURDAYS_BY_DEFAULT) { skipDay = true; /* skipReason += 'Saturday (Default Off) '; */ }
+        if (isAdminBlocked) { skipDay = true; /* skipReason += 'AdminBlocked '; */ }
+
+        // console.log(`  Checking candidate: ${fullDateStr} (Day: ${daysOfWeek[dayIndex]}) -> Skip: ${skipDay}, Reason: ${skipReason.trim()}`);
+
+        if (!skipDay) {
+            newAvailableDates.push({
+                day: daysOfWeek[dayIndex], // Keep 'Mon', 'Tue' for potential logic if needed elsewhere, ClientPage will translate
+                // ***** THIS IS THE MODIFIED LINE *****
+                date: dateCandidate.toLocaleDateString('he-IL', { month: 'long', day: 'numeric' }), // Hebrew month and day
+                fullDate: fullDateStr
+            });
             count++;
-        } offset++;
+            // console.log(`    %cAdded: ${fullDateStr}. Count is now: ${count}`, "color: green;");
+        } else {
+            // console.log(`    %cSkipped: ${fullDateStr}. Reason: ${skipReason.trim()}`, "color: orange;");
+        }
+        offset++;
       }
-      const isSelectedDateValid = availableDates.some(d => d.fullDate === selectedDate);
-      if (availableDates.length > 0 && !isSelectedDateValid) { setSelectedDate(availableDates[0].fullDate); }
-      else if (availableDates.length === 0 && selectedDate !== '') { console.warn("App: No available booking dates found."); }
-      return availableDates;
-   }, [blockedDays, selectedDate]);
+      // console.log(`%cApp.tsx: rawGenerateNextFiveDays produced: [${newAvailableDates.map(d => d.fullDate).join(', ')}]`, "color: blue; font-weight: bold;");
+      return newAvailableDates;
+  }, [blockedDays, todayISOString]); 
+
+  const [generatedAvailableDates, setGeneratedAvailableDates] = useState<{ day: string, date: string, fullDate: string }[]>([]);
+
+  useEffect(() => {
+    setGeneratedAvailableDates(rawGenerateNextFiveDays());
+  }, [rawGenerateNextFiveDays]);
+
+  useEffect(() => {
+    if (generatedAvailableDates.length > 0) {
+        const isSelectedDateStillValid = generatedAvailableDates.some(d => d.fullDate === selectedDate);
+        if (!selectedDate || !isSelectedDateStillValid) { 
+            setSelectedDate(generatedAvailableDates[0].fullDate);
+        }
+    } else if (selectedDate !== '') { 
+        // console.warn("App: No available dates generated, but selectedDate is set.");
+    }
+  }, [generatedAvailableDates, selectedDate]); 
+
 
   const handleReservation = useCallback(async (time: string) => {
-       if (!currentUser || !userPhone) { alert("Please log in and ensure phone number is saved."); return; }
-       if (blockedDays.has(selectedDate)) { alert("This date is currently unavailable."); return; }
-       if (blockedTimeSlots.get(selectedDate)?.has(time)) { alert(`The time slot ${time} is currently blocked.`); return; }
+       if (!currentUser || !userPhone) { alert("יש להתחבר ולהזין מספר טלפון."); return; }
+       if (blockedDays.has(selectedDate) || (blockedTimeSlots.get(selectedDate)?.has(time))) { alert("תאריך/שעה לא פנויים."); return; }
        setLoading(true);
        try {
-         const now = new Date(); const slotDateTime = new Date(`${selectedDate} ${time.replace(/(AM|PM)/, ' $1')}`);
-         if (slotDateTime <= now) { alert('Cannot book appointments in the past.'); setLoading(false); return; }
-         const isAvailable = await isTimeSlotAvailable(selectedDate, time, currentUser.uid);
-         if (!isAvailable) { alert('This time slot has just been booked.'); setLoading(false); return; }
+         const now = new Date(); const [h, m] = time.split(':').map(Number);
+         const slotDT = new Date(selectedDate); slotDT.setHours(h, m, 0, 0);
+         if (slotDT <= now) { alert('לא ניתן לקבוע תורים בעבר.'); setLoading(false); return; }
+         if (!await isTimeSlotAvailable(selectedDate, time, currentUser.uid)) { alert('חלון זמן זה נתפס כרגע.'); setLoading(false); return; }
          const existing = await getUserReservationForDate(currentUser.uid, selectedDate);
-         if (existing?.id) { await deleteReservation(existing.id); }
-         const newData: Omit<Reservation, 'id'> = { name: currentUser.displayName || 'User', phone: userPhone, time, date: selectedDate, userId: currentUser.uid };
-         await createReservation(newData);
-         alert(`Reservation confirmed for ${selectedDate} at ${time}`);
-       } catch (error: any) { console.error("App: Error making reservation:", error); alert(`Failed to make reservation. ${error.message || ''}`);
+         if (existing?.id) await deleteReservation(existing.id);
+         await createReservation({ name: currentUser.displayName || 'משתמש', phone: userPhone, time, date: selectedDate, userId: currentUser.uid });
+         alert(`התור אושר לתאריך ${selectedDate} בשעה ${time}`);
+       } catch (e:any) { console.error("App Res Err:", e); alert(`קביעת התור נכשלה: ${e.message||''}`);
        } finally { setLoading(false); }
    }, [currentUser, userPhone, selectedDate, blockedDays, blockedTimeSlots]);
 
   const handleDeleteReservation = useCallback(async (id: string) => {
-       if (!id) { alert('Cannot delete reservation: Invalid ID.'); return; }
-       setLoading(true);
+       if (!id) { alert('מזהה לא תקין.'); return; } setLoading(true);
        try { await deleteReservation(id); }
-       catch (error: any) { console.error("App: Error deleting reservation:", error); alert(`Failed to delete reservation. ${error.message || ''}`); }
+       catch (e:any) { console.error("App Del Err:", e); alert(`מחיקה נכשלה: ${e.message||''}`); }
        finally { setLoading(false); }
    }, []);
 
   const handleCancelUserReservation = useCallback(async () => {
-       if (!currentUser) return;
-       setLoading(true);
+       if (!currentUser) return; setLoading(true);
        try {
          const userRes = await getUserReservationForDate(currentUser.uid, selectedDate);
-         if (userRes?.id) { await deleteReservation(userRes.id); alert('Appointment cancelled.'); }
-         else { alert('No appointment found to cancel for this date.'); }
-       } catch (error: any) { console.error("App: Error cancelling user reservation:", error); alert(`Failed to cancel reservation. ${error.message || ''}`); }
+         if (userRes?.id) { await deleteReservation(userRes.id); alert('התור בוטל.'); }
+         else alert('לא נמצא תור לביטול בתאריך זה.');
+       } catch (e:any) { console.error("App Cancel Err:", e); alert(`ביטול נכשל: ${e.message||''}`); }
        finally { setLoading(false); }
    }, [currentUser, selectedDate]);
 
-  const availableTimes = useMemo(() => [
-      '9:00 AM', '9:30 AM', '10:00 AM', '10:30 AM', '11:00 AM', '11:30 AM', '12:00 PM', '12:30 PM',
-      '1:00 PM', '1:30 PM', '2:00 PM', '2:30 PM', '3:00 PM', '3:30 PM', '4:00 PM', '4:30 PM',
-      '5:00 PM', '5:30 PM'
+  const availableTimes = useMemo(() => [ 
+      '09:00', '09:30', '10:00', '10:30', '11:00', '11:30', 
+      '12:00', '12:30', '13:00', '13:30', '14:00', '14:30', 
+      '15:00', '15:30', '16:00', '16:30', '17:00', '17:30'
   ], []);
 
-  const getUserReservationForSelectedDate = useCallback(() => {
-      if (!currentUser) return null; return reservations.find(res => res.userId === currentUser.uid && res.date === selectedDate) || null;
-  }, [currentUser, reservations, selectedDate]);
-  const isReservedByCurrentUser = useCallback((time: string): boolean => {
+  const getUserReservationForSelectedDate = useCallback(() => 
+    currentUser ? (reservations.find(r => r.userId === currentUser.uid && r.date === selectedDate) || null) : null
+  , [currentUser, reservations, selectedDate]);
+
+  const isReservedByCurrentUser = useCallback((time: string) => {
       const userRes = getUserReservationForSelectedDate(); return !!userRes && userRes.time === time;
    }, [getUserReservationForSelectedDate]);
-  const isReservedByOthers = useCallback((time: string): boolean => {
-      return reservations.some(res => res.date === selectedDate && res.time === time && res.userId !== currentUser?.uid );
-  }, [reservations, selectedDate, currentUser]);
+
+  const isReservedByOthers = useCallback((time: string) => 
+    reservations.some(r => r.date === selectedDate && r.time === time && r.userId !== currentUser?.uid )
+  , [reservations, selectedDate, currentUser]);
 
   if (loading && !currentUser && page === 'login') {
-     return ( <div className="app-loading-spinner"> Loading Application... </div> );
+     return ( <div className="app-loading-spinner"> טוען את האפליקציה... </div> );
   }
 
   return (
     <div id="app-container">
-      {page === 'login' && ( <LoginPage setLoadingApp={setLoading} /> )}
-      {page === 'get_phone' && currentUser && ( <PhoneInputModal onSubmit={handlePhoneSubmit} onCancel={handleSignOut} /> )}
-      {showPhoneUpdateModal && currentUser && ( <PhoneInputModal onSubmit={handlePhoneSubmit} onCancel={() => setShowPhoneUpdateModal(false)} currentPhone={userPhone} isUpdating={true} /> )}
+      {page === 'login' && <LoginPage setLoadingApp={setLoading} />}
+      {page === 'get_phone' && currentUser && <PhoneInputModal onSubmit={handlePhoneSubmit} onCancel={handleSignOut}/>}
+      {showPhoneUpdateModal && currentUser && <PhoneInputModal onSubmit={handlePhoneSubmit} onCancel={() => setShowPhoneUpdateModal(false)} currentPhone={userPhone} isUpdating={true}/>}
+      
       {page === 'client' && currentUser && userPhone && (
         <ClientPage
-          latestBarberNews={latestNews} userName={currentUser.displayName || "Client"}
+          latestBarberNews={latestNews} userName={currentUser.displayName || "לקוח"}
           availableTimes={availableTimes} userReservation={getUserReservationForSelectedDate()}
           handleReservation={handleReservation} cancelReservation={handleCancelUserReservation}
           goBack={handleSignOut} isReservedByCurrentUser={isReservedByCurrentUser}
           isReservedByOthers={isReservedByOthers} selectedDate={selectedDate}
-          setSelectedDate={setSelectedDate} generateNextFiveDays={generateNextFiveDays}
-          onUpdatePhoneNumber={() => setShowPhoneUpdateModal(true)} blockedDays={blockedDays}
+          setSelectedDate={setSelectedDate} 
+          generateNextFiveDays={() => generatedAvailableDates} 
+          onUpdatePhoneNumber={() => setShowPhoneUpdateModal(true)} 
+          blockedDays={blockedDays}
           blockedTimeSlots={blockedTimeSlots}
         />
       )}
-      {page === 'admin' && currentUser && ( <AdminDashboard reservations={reservations} goBack={handleSignOut} onDeleteReservation={handleDeleteReservation} /> )}
-      {loading && page !== 'login' && ( <div className="modal-overlay action-loading-overlay"> <div className="action-loading-content">Processing...</div> </div> )}
+
+      {page === 'admin' && currentUser && (
+        <AdminDashboard 
+          reservations={reservations} goBack={handleSignOut} onDeleteReservation={handleDeleteReservation} 
+        /> 
+      )}
+
+      {loading && page !== 'login' && (
+        <div className="modal-overlay action-loading-overlay"><div className="action-loading-content">מעבד...</div></div>
+      )}
     </div>
   );
 };

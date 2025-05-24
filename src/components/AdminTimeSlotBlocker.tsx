@@ -2,254 +2,188 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { BlockedTimeSlotsMap, getBlockedTimeSlots, blockTimeSlot, unblockTimeSlot } from '../services/firebase-service';
 
-const availableTimes = [
-    '9:00 AM', '9:30 AM', '10:00 AM', '10:30 AM', '11:00 AM', '11:30 AM',
-    '12:00 PM', '12:30 PM', '1:00 PM', '1:30 PM', '2:00 PM', '2:30 PM',
-    '3:00 PM', '3:30 PM', '4:00 PM', '4:30 PM', '5:00 PM', '5:30 PM'
+// availableTimes remain as HH:MM strings, as they are values for select, not directly displayed labels needing translation here.
+const availableTimes: string[] = [ 
+    '09:00', '09:30', '10:00', '10:30', '11:00', '11:30',
+    '12:00', '12:30', '13:00', '13:30', '14:00', '14:30',
+    '15:00', '15:30', '16:00', '16:30', '17:00', '17:30'
 ];
 
-const timeToMinutes = (timeStr: string): number => {
-    const match = timeStr.match(/(\d+):(\d+)\s*(AM|PM)/i);
+const timeToMinutes = (timeStr: string): number => { 
+    const match = timeStr.match(/(\d{2}):(\d{2})/);
     if (!match) return -1;
-    let hours = parseInt(match[1], 10);
-    const minutes = parseInt(match[2], 10);
-    const modifier = match[3].toUpperCase();
-    if (modifier === 'PM' && hours < 12) hours += 12;
-    if (modifier === 'AM' && hours === 12) hours = 0;
-    return hours * 60 + minutes;
+    return parseInt(match[1], 10) * 60 + parseInt(match[2], 10);
 };
 
-// Helper function for DD/MM/YYYY formatting
-const formatDateToDDMMYYYY_AdminTimeBlocker = (dateString: string): string => {
-  // Assuming dateString is YYYY-MM-DD. We add 'T00:00:00Z' to interpret it as UTC.
+const formatDateToHebrew_AdminTimeBlocker = (dateString: string): string => {
   const date = new Date(dateString + 'T00:00:00Z');
-  return date.toLocaleDateString('en-GB', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    weekday: 'short', // Optional
-    timeZone: 'UTC',
+  return date.toLocaleDateString('he-IL', { // Hebrew locale
+    day: '2-digit', month: '2-digit', year: 'numeric', weekday: 'short', timeZone: 'UTC',
   });
 };
 
+const getTodayISO_TSB = () => new Date().toISOString().split('T')[0];
 
 export const AdminTimeSlotBlocker: React.FC = () => {
   const [blockedSlots, setBlockedSlots] = useState<BlockedTimeSlotsMap>(new Map());
   const [loadingSlots, setLoadingSlots] = useState(true);
-  const [selectedDate, setSelectedDate] = useState<string>(''); // YYYY-MM-DD from input
+  const [selectedDate, setSelectedDate] = useState<string>('');
   const [startTime, setStartTime] = useState<string>(availableTimes[0]);
-  const [endTime, setEndTime] = useState<string>(availableTimes[availableTimes.length -1]);
-
+  const [endTime, setEndTime] = useState<string>(availableTimes[availableTimes.length - 1]);
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
+  const [isUnblockingAllSlots, setIsUnblockingAllSlots] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
-
-  const today = useMemo(() => new Date().toISOString().split('T')[0], []);
+  
+  const todayISO = useMemo(() => getTodayISO_TSB(), []);
 
   useEffect(() => {
     setLoadingSlots(true);
     const unsubscribe = getBlockedTimeSlots((slotsMap) => {
-      setBlockedSlots(slotsMap);
-      setLoadingSlots(false);
+      setBlockedSlots(slotsMap); setLoadingSlots(false);
     });
     return () => unsubscribe();
   }, []);
 
   const handleBlockRange = async () => {
-    if (!selectedDate) { // selectedDate is YYYY-MM-DD
-      setError('Please select a date.');
-      return;
-    }
-    if (!startTime || !endTime) {
-        setError('Please select a start and end time for the range.');
-        return;
-    }
+    if (!selectedDate) { setError('אנא בחר תאריך.'); return; }
+    if (!startTime || !endTime) { setError('אנא בחר שעת התחלה ושעת סיום.'); return; }
+    const startM = timeToMinutes(startTime); const endM = timeToMinutes(endTime);
+    if (startM === -1 || endM === -1) { setError('פורמט שעה לא תקין. צפוי HH:MM.'); return; }
+    if (startM > endM) { setError('שעת ההתחלה חייבת להיות לפני או זהה לשעת הסיום.'); return; }
 
-    const startMinutes = timeToMinutes(startTime);
-    const endMinutes = timeToMinutes(endTime);
-
-    if (startMinutes === -1 || endMinutes === -1) {
-        setError('Invalid start or end time format selected.');
-        return;
-    }
-    if (startMinutes > endMinutes) {
-        setError('Start time must be before or the same as end time.');
-        return;
-    }
-
-    setIsProcessing(true);
-    setError(null);
-    setSuccessMessage(null);
-
+    setIsProcessing(true); setError(null); setSuccessMessage(null);
     const slotsToBlock: string[] = [];
-    availableTimes.forEach(slot => {
-        const slotMinutes = timeToMinutes(slot);
-        if (slotMinutes >= startMinutes && slotMinutes <= endMinutes) {
-            if (!(blockedSlots.get(selectedDate)?.has(slot))) {
-                slotsToBlock.push(slot);
-            }
+    availableTimes.forEach(slot => { 
+        const slotM = timeToMinutes(slot);
+        if (slotM >= startM && slotM <= endM && !(blockedSlots.get(selectedDate)?.has(slot))) {
+            slotsToBlock.push(slot);
         }
     });
 
     if (slotsToBlock.length === 0) {
-        setSuccessMessage('No new slots to block in the selected range (they might be already blocked or range is empty).');
-        setIsProcessing(false);
-        setTimeout(() => { setSuccessMessage(null); }, 5000);
-        return;
+        setSuccessMessage('אין חלונות זמן חדשים לחסימה בטווח שנבחר (ייתכן שכבר חסומים או שהטווח ריק).');
+        setIsProcessing(false); setTimeout(() => setSuccessMessage(null), 5000); return;
     }
-
     try {
-      const promises = slotsToBlock.map(slot => blockTimeSlot(selectedDate, slot));
-      await Promise.all(promises);
-      // MODIFIED: Date formatting in success message
-      setSuccessMessage(`Blocked ${slotsToBlock.length} slot(s) from ${startTime} to ${endTime} on ${formatDateToDDMMYYYY_AdminTimeBlocker(selectedDate)}.`);
-    } catch (err: any) {
-      console.error('Error blocking time slot range:', err);
-      setError(`Failed to block range. ${err.message || 'Please try again.'}`);
-    } finally {
-      setIsProcessing(false);
-      setTimeout(() => {
-        setError(null);
-        setSuccessMessage(null);
-      }, 5000);
-    }
+      await Promise.all(slotsToBlock.map(slot => blockTimeSlot(selectedDate, slot)));
+      setSuccessMessage(`נחסמו ${slotsToBlock.length} חלונות זמן מ-${startTime} עד ${endTime} בתאריך ${formatDateToHebrew_AdminTimeBlocker(selectedDate)}.`);
+    } catch (err: any) { setError(`חסימת טווח הזמנים נכשלה: ${err.message || 'אנא נסה שוב.'}`);
+    } finally { setIsProcessing(false); setTimeout(() => { setError(null); setSuccessMessage(null); }, 5000); }
   };
 
-  const handleDirectUnblock = async (date: string, time: string) => { // date is YYYY-MM-DD
-      setIsProcessing(true);
-      setError(null);
-      setSuccessMessage(null);
+  const handleDirectUnblock = async (date: string, time: string) => { 
+      setIsProcessing(true); setError(null); setSuccessMessage(null);
       try {
-          await unblockTimeSlot(date, time);
-          // MODIFIED: Date formatting in success message
-          setSuccessMessage(`Slot ${time} on ${formatDateToDDMMYYYY_AdminTimeBlocker(date)} unblocked.`);
-      } catch (err: any) {
-          setError(`Failed to unblock ${time} on ${formatDateToDDMMYYYY_AdminTimeBlocker(date)}: ${err.message}`);
-      } finally {
-          setIsProcessing(false);
-          setTimeout(() => {
-            setError(null);
-            setSuccessMessage(null);
-          }, 4000);
-      }
+          await unblockTimeSlot(date, time); 
+          setSuccessMessage(`חסימת חלון הזמן ${time} בתאריך ${formatDateToHebrew_AdminTimeBlocker(date)} בוטלה.`);
+      } catch (err: any) { setError(`ביטול חסימת ${time} בתאריך ${formatDateToHebrew_AdminTimeBlocker(date)} נכשל: ${err.message}`);
+      } finally { setIsProcessing(false); setTimeout(() => { setError(null); setSuccessMessage(null); }, 4000); }
   };
 
-  const sortedBlockedSlotsList = useMemo(() => {
-    const list: { date: string; time: string }[] = []; // date is YYYY-MM-DD
-    const sortedDates = Array.from(blockedSlots.keys()).sort();
+  const displayedBlockedSlotsList = useMemo(() => {
+    const list: { date: string; time: string }[] = [];
+    const sortedDates = Array.from(blockedSlots.keys())
+                          .filter(dateStr => dateStr >= todayISO) 
+                          .sort();
     sortedDates.forEach(date => {
-        const times = Array.from(blockedSlots.get(date) || []).sort((a, b) => {
-             const timeA = timeToMinutes(a);
-             const timeB = timeToMinutes(b);
-             return timeA - timeB;
-        });
+        const times = Array.from(blockedSlots.get(date) || [])
+                        .sort((a, b) => timeToMinutes(a) - timeToMinutes(b));
         times.forEach(time => list.push({ date, time }));
     });
     return list;
-  }, [blockedSlots]);
+  }, [blockedSlots, todayISO]);
+
+  const handleUnblockAllFutureSlots = async () => {
+    if (displayedBlockedSlotsList.length === 0) {
+        setSuccessMessage("אין חלונות זמן עתידיים שחסומים כעת.");
+        setTimeout(() => setSuccessMessage(null), 3000);
+        return;
+    }
+    if (window.confirm(`האם לבטל חסימה של כל ${displayedBlockedSlotsList.length} חלונות הזמן העתידיים החסומים הרשומים? לא ניתן לשחזר פעולה זו.`)) {
+        setIsUnblockingAllSlots(true);
+        setError(null); setSuccessMessage(null);
+        let unblockCount = 0; let failedCount = 0;
+        try {
+            const unblockPromises = displayedBlockedSlotsList.map(slot => 
+                unblockTimeSlot(slot.date, slot.time)
+                    .then(() => unblockCount++)
+                    .catch(individualError => {
+                        console.error(`Failed to unblock slot ${slot.time} on ${slot.date}:`, individualError);
+                        failedCount++;
+                    })
+            );
+            await Promise.all(unblockPromises); 
+            if (failedCount > 0) {
+                setError(`בוטלה חסימה של ${unblockCount} חלונות זמן. ${failedCount} חלונות זמן לא בוטלו. בדוק קונסול.`);
+            } else {
+                setSuccessMessage(`בוטלה חסימה של כל ${unblockCount} חלונות הזמן העתידיים.`);
+            }
+        } catch (err: any) { 
+            setError(`אירעה שגיאה בביטול חסימת כל חלונות הזמן. ${err.message || 'אנא נסה שוב.'}`);
+        } finally {
+            setIsUnblockingAllSlots(false);
+            setTimeout(() => { setError(null); setSuccessMessage(null); }, 6000);
+        }
+    }
+  };
 
   const filteredEndTimes = useMemo(() => {
-    const startMin = timeToMinutes(startTime);
-    return availableTimes.filter(time => timeToMinutes(time) >= startMin);
+    const startM = timeToMinutes(startTime);
+    return availableTimes.filter(t => timeToMinutes(t) >= startM);
   }, [startTime]);
 
   useEffect(() => {
-    const startMin = timeToMinutes(startTime);
-    const endMin = timeToMinutes(endTime);
-    if (startMin > endMin) {
-      const firstValidEndTime = filteredEndTimes.length > 0 ? filteredEndTimes[0] : availableTimes[availableTimes.length - 1];
-      setEndTime(firstValidEndTime);
+    if (timeToMinutes(startTime) > timeToMinutes(endTime)) {
+      setEndTime(filteredEndTimes.length > 0 ? filteredEndTimes[0] : availableTimes[availableTimes.length - 1]);
     }
   }, [startTime, endTime, filteredEndTimes]);
 
-
   return (
     <div className="timeslot-blocker-card">
-      <h3 className="section-title timeslot-blocker-title">Manage Blocked Time Slots</h3>
-       <p className="timeslot-blocker-description">Block a range of time slots on a selected date.</p>
+      <h3 className="section-title timeslot-blocker-title">ניהול חלונות זמן חסומים</h3>
+       <p className="timeslot-blocker-description">חסום טווח של חלונות זמן בתאריך נבחר. חסימות עבר מוסתרות מהרשימה.</p>
       <div className="timeslot-blocker-controls">
-        <input
-          type="date"
-          value={selectedDate} // selectedDate is YYYY-MM-DD
-          onChange={(e) => {
-              setSelectedDate(e.target.value);
-              setError(null); setSuccessMessage(null);
-          }}
-          className="timeslot-blocker-date-input"
-          min={today}
-          aria-label="Select date for time slot management"
-        />
-        <label htmlFor="start-time-select" className="sr-only">Start Time</label>
-        <select
-          id="start-time-select"
-          value={startTime}
-          onChange={(e) => {
-              setStartTime(e.target.value);
-              setError(null); setSuccessMessage(null);
-          }}
-          className="timeslot-blocker-time-select"
-          aria-label="Select start time for range"
-        >
-          {availableTimes.map(time => (
-            <option key={`start-${time}`} value={time}>{time}</option>
-          ))}
-        </select>
-        <span className="time-range-separator">to</span>
-        <label htmlFor="end-time-select" className="sr-only">End Time</label>
-        <select
-          id="end-time-select"
-          value={endTime}
-          onChange={(e) => {
-              setEndTime(e.target.value);
-              setError(null); setSuccessMessage(null);
-          }}
-          className="timeslot-blocker-time-select"
-          aria-label="Select end time for range"
-        >
-          {filteredEndTimes.map(time => (
-            <option key={`end-${time}`} value={time}>{time}</option>
-          ))}
-        </select>
+        <input type="date" value={selectedDate} onChange={(e)=>{setSelectedDate(e.target.value);setError(null);setSuccessMessage(null);}}
+          className="timeslot-blocker-date-input" min={todayISO} aria-label="בחר תאריך לניהול חלונות זמן"/>
+        <label htmlFor="start-time-select-admin" className="sr-only">שעת התחלה</label>
+        <select id="start-time-select-admin" value={startTime} onChange={(e)=>{setStartTime(e.target.value);setError(null);setSuccessMessage(null);}} className="timeslot-blocker-time-select" aria-label="בחר שעת התחלה לטווח">{availableTimes.map(t=>(<option key={`start-${t}`} value={t}>{t}</option>))}</select>
+        <span className="time-range-separator">עד</span>
+        <label htmlFor="end-time-select-admin" className="sr-only">שעת סיום</label>
+        <select id="end-time-select-admin" value={endTime} onChange={(e)=>{setEndTime(e.target.value);setError(null);setSuccessMessage(null);}} className="timeslot-blocker-time-select" aria-label="בחר שעת סיום לטווח">{filteredEndTimes.map(t=>(<option key={`end-${t}`} value={t}>{t}</option>))}</select>
         <div className="timeslot-blocker-buttons">
-          <button
-            onClick={handleBlockRange}
-            disabled={isProcessing || !selectedDate || !startTime || !endTime}
-            className="timeslot-blocker-button block"
-            title={ selectedDate ? `Block selected time range on ${formatDateToDDMMYYYY_AdminTimeBlocker(selectedDate)}` : 'Block selected time range'}
-          >
-            {isProcessing ? 'Blocking Range...' : 'Block Range'}
-          </button>
+            <button onClick={handleBlockRange} disabled={isProcessing || isUnblockingAllSlots ||!selectedDate||!startTime||!endTime} 
+                className="timeslot-blocker-button block" 
+                title={selectedDate?`חסום טווח זמן נבחר בתאריך ${formatDateToHebrew_AdminTimeBlocker(selectedDate)}`:'חסום טווח זמן נבחר'}>
+                {isProcessing?'חוסם טווח...':'חסום טווח'}
+            </button>
         </div>
       </div>
       {error && <p className="timeslot-blocker-status error" role="alert">{error}</p>}
       {successMessage && <p className="timeslot-blocker-status success" role="status">{successMessage}</p>}
+      
       <div className="blocked-timeslots-list">
-        <h4 className="blocked-slots-list-title">Currently Blocked Time Slots:</h4>
-        {loadingSlots ? (
-           <p className="blocked-slots-list-empty">Loading blocked slots...</p>
-        ) : sortedBlockedSlotsList.length === 0 ? (
-          <p className="blocked-slots-list-empty">No specific time slots are currently blocked.</p>
-        ) : (
-          <ul aria-label="List of currently blocked time slots">
-            {sortedBlockedSlotsList.map(({ date, time }) => ( // date is YYYY-MM-DD
-              <li key={`${date}-${time}`} className="blocked-slot-list-item">
-                <span>
-                  {/* MODIFIED: Date formatting */}
-                  {formatDateToDDMMYYYY_AdminTimeBlocker(date)}
-                  <span className="slot-time">{time}</span>
-                </span>
-                <button
-                  onClick={() => handleDirectUnblock(date, time)}
-                  disabled={isProcessing}
-                  className="unblock-slot-list-button"
-                  aria-label={`Unblock time slot ${time} on ${formatDateToDDMMYYYY_AdminTimeBlocker(date)}`} // MODIFIED
+        <div className="section-header" style={{ marginBottom: '10px', marginTop: '20px' }}>
+            <h4 className="blocked-slots-list-title" style={{ marginBottom: '0'}}>חלונות זמן חסומים (היום ועתידיים):</h4>
+            {displayedBlockedSlotsList.length > 0 && (
+                 <button 
+                    onClick={handleUnblockAllFutureSlots}
+                    disabled={isUnblockingAllSlots || isProcessing}
+                    className="action-button-small delete" 
+                    style={{ marginLeft: 'auto', padding: '6px 12px' }}
+                    title="בטל חסימה של כל חלונות הזמן העתידיים הרשומים"
                 >
-                  {isProcessing ? '...' : 'Unblock'}
+                    {isUnblockingAllSlots ? 'מבטל חסימות...' : 'בטל חסימת כל העתידיים'}
                 </button>
-              </li>
-            ))}
-          </ul>
-        )}
+            )}
+        </div>
+        {loadingSlots?(<p>טוען חלונות זמן חסומים...</p>)
+         : displayedBlockedSlotsList.length===0?(<p className="blocked-slots-list-empty">אין חלונות זמן חסומים כעת או בעתיד.</p>)
+         : (<ul aria-label="רשימת חלונות זמן חסומים כעת">
+          {displayedBlockedSlotsList.map(({date,time})=>(<li key={`${date}-${time}`} className="blocked-slot-list-item">
+            <span>{formatDateToHebrew_AdminTimeBlocker(date)}<span className="slot-time">{time}</span></span>
+            <button onClick={()=>handleDirectUnblock(date,time)} disabled={isProcessing || isUnblockingAllSlots} className="unblock-slot-list-button" aria-label={`בטל חסימת חלון זמן ${time} בתאריך ${formatDateToHebrew_AdminTimeBlocker(date)}`}>{isProcessing || isUnblockingAllSlots ?'...':'בטל חסימה'}</button>
+          </li>))}</ul>)}
       </div>
     </div>
   );
