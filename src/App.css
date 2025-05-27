@@ -3,6 +3,7 @@
   max-width: 1280px;
   margin: 0 auto;
   text-align: center;
+  
 }
 
 .card { /* This is a very generic class, might be used elsewhere or can be removed if not */

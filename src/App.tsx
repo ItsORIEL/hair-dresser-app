@@ -16,9 +16,9 @@ import {
 } from './services/firebase-service';
 import { User } from 'firebase/auth';
 
-const ADMIN_UID = 's'; 
+const ADMIN_UID = 'B5X5Iqw9HGbMXm7qEdu7pDdxWP23'; 
 
-const SHOW_FRIDAYS_BY_DEFAULT = false; 
+const SHOW_FRIDAYS_BY_DEFAULT = true; 
 const SHOW_SATURDAYS_BY_DEFAULT = false; 
 
 const getCurrentDateISO = (offset: number = 0): string => { 
@@ -223,7 +223,8 @@ const App: React.FC = () => {
   const availableTimes = useMemo(() => [ 
       '09:00', '09:30', '10:00', '10:30', '11:00', '11:30', 
       '12:00', '12:30', '13:00', '13:30', '14:00', '14:30', 
-      '15:00', '15:30', '16:00', '16:30', '17:00', '17:30'
+      '15:00', '15:30', '16:00', '16:30', '17:00', '17:30',
+      '18:00', '18:30', '19:00'
   ], []);
 
   const getUserReservationForSelectedDate = useCallback(() => 
