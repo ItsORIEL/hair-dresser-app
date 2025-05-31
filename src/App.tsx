@@ -4,28 +4,31 @@ import { LoginPage } from './components/LoginPage';
 import { ClientPage } from './components/ClientPage';
 import { AdminDashboard } from './components/AdminDashboard';
 import './App.css'; // Global styles
-import { authInstance } from './firebase'; 
+import { authInstance } from './firebase';
 import {
   getReservations, createReservation, deleteReservation,
   getUserReservationForDate, isTimeSlotAvailable, Reservation,
   saveUserPhoneNumber, getUserPhoneNumber,
   getLatestBarberNews, BarberNews,
-  signOut, onAuthStateChanged, 
+  signOut, onAuthStateChanged,
   getBlockedDays,
   getBlockedTimeSlots, BlockedTimeSlotsMap
 } from './services/firebase-service';
 import { User } from 'firebase/auth';
+import { OpenInExternalBrowserPage } from './components/OpenInExternalBrowserPage';
 
-const ADMIN_UID = 's'; 
+const ADMIN_UID = 'B5X5Iqw9HGbMXm7qEdu7pDdxWP23';
 
-const SHOW_FRIDAYS_BY_DEFAULT = false; 
-const SHOW_SATURDAYS_BY_DEFAULT = false; 
+const SHOW_FRIDAYS_BY_DEFAULT = true;
+const SHOW_SATURDAYS_BY_DEFAULT = false;
 
-const getCurrentDateISO = (offset: number = 0): string => { 
+const getCurrentDateISO = (offset: number = 0): string => {
   const today = new Date();
   today.setDate(today.getDate() + offset);
   return today.toISOString().split('T')[0];
 };
+
+type PageState = 'login' | 'client' | 'admin' | 'get_phone';
 
 interface PhoneInputProps {
   onSubmit: (phone: string) => void;
@@ -64,54 +67,106 @@ const PhoneInputModal: React.FC<PhoneInputProps> = ({ onSubmit, onCancel, curren
 const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [userPhone, setUserPhone] = useState<string | undefined>(undefined);
-  const [page, setPage] = useState<'login' | 'client' | 'admin' | 'get_phone'>('login');
+  const [page, setPage] = useState<PageState>('login');
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [latestNews, setLatestNews] = useState<BarberNews | null>(null);
   const [blockedDays, setBlockedDays] = useState<Set<string>>(new Set());
   const [blockedTimeSlots, setBlockedTimeSlots] = useState<BlockedTimeSlotsMap>(new Map());
-  const [selectedDate, setSelectedDate] = useState<string>(() => getCurrentDateISO()); 
+  const [selectedDate, setSelectedDate] = useState<string>(() => getCurrentDateISO());
   const [loading, setLoading] = useState<boolean>(true);
   const [showPhoneUpdateModal, setShowPhoneUpdateModal] = useState(false);
 
+  const [showOpenInBrowserGuidance, setShowOpenInBrowserGuidance] = useState<boolean>(false);
+
   const todayISOString = useMemo(() => getCurrentDateISO(), []);
 
+  useEffect(() => {
+    const userAgent = navigator.userAgent.toLowerCase();
+    const isInstagram = userAgent.includes('instagram');
+    const isFacebookApp = userAgent.includes('fban') || userAgent.includes('fbav');
+
+    if (isInstagram || isFacebookApp) {
+      console.warn("Problematic user agent detected:", userAgent, ". Will show guidance page.");
+      setShowOpenInBrowserGuidance(true);
+      setLoading(false); 
+    }
+  }, []);
+
   const handleSignOut = useCallback(async () => {
-    setLoading(true);
-    try { await signOut(); }
-    catch (error) { console.error("App: Sign out failed:", error); alert("ההתנתקות נכשלה."); setLoading(false); }
+    try {
+      await signOut();
+    } catch (error) {
+      console.error("App: Sign out failed:", error);
+      alert("ההתנתקות נכשלה.");
+    }
   }, []);
 
   useEffect(() => {
+    if (showOpenInBrowserGuidance) {
+      return;
+    }
+
+    setLoading(true);
     const unsubscribeAuth = onAuthStateChanged(authInstance, async (userAuth) => {
       setCurrentUser(userAuth);
       if (userAuth) {
         try {
           const phone = await getUserPhoneNumber(userAuth.uid);
           setUserPhone(phone);
-          if (userAuth.uid === ADMIN_UID) setPage('admin');
-          else if (phone) setPage('client');
-          else setPage('get_phone');
+          if (userAuth.uid === ADMIN_UID) {
+            setPage('admin');
+          } else if (phone) {
+            setPage('client');
+          } else {
+            setPage('get_phone');
+          }
         } catch (error) {
-          console.error("App: Error post-auth setup:", error); alert("שגיאה בהגדרת החיבור.");
-          await handleSignOut(); setPage('login');
+          console.error("App: Error post-auth setup:", error);
+          alert("שגיאה בהגדרת החיבור.");
+          await signOut();
+        } finally {
+          setLoading(false);
         }
       } else {
-        setCurrentUser(null); setUserPhone(undefined); setReservations([]); setPage('login');
+        setPage('login');
+        setReservations([]);
+        setUserPhone(undefined);
+        setLoading(false);
       }
-      setLoading(false);
     });
 
-    let unsubscribeReservations: (() => void) | null = null;
-    if (currentUser) { unsubscribeReservations = getReservations(setReservations); }
-    const unsubscribeBlockedDays = getBlockedDays(setBlockedDays);
-    const unsubscribeNews = getLatestBarberNews(setLatestNews);
-    const unsubscribeBlockedTimeSlots = getBlockedTimeSlots(setBlockedTimeSlots);
+    return () => unsubscribeAuth();
+  }, [showOpenInBrowserGuidance]);
 
-    return () => {
-      unsubscribeAuth(); unsubscribeBlockedDays(); unsubscribeNews(); unsubscribeBlockedTimeSlots();
-      if (unsubscribeReservations) unsubscribeReservations();
-    };
-  }, [currentUser, handleSignOut]);
+  useEffect(() => {
+    if (showOpenInBrowserGuidance || !currentUser) {
+      return () => {};
+    }
+
+    if (page === 'client' || page === 'admin') {
+      const unsubReservations = getReservations(setReservations);
+      const unsubBlockedDays = getBlockedDays(setBlockedDays);
+      const unsubNews = getLatestBarberNews(setLatestNews);
+      const unsubBlockedTimeSlots = getBlockedTimeSlots(setBlockedTimeSlots);
+
+      return () => {
+        unsubReservations();
+        unsubBlockedDays();
+        unsubNews();
+        unsubBlockedTimeSlots();
+      };
+    } else {
+      const unsubGlobalNews = getLatestBarberNews(setLatestNews);
+      const unsubGlobalBlockedDays = getBlockedDays(setBlockedDays);
+      const unsubGlobalBlockedTimeSlots = getBlockedTimeSlots(setBlockedTimeSlots);
+      return () => {
+          unsubGlobalNews();
+          unsubGlobalBlockedDays();
+          unsubGlobalBlockedTimeSlots();
+      }
+    }
+  }, [currentUser, page, showOpenInBrowserGuidance]);
+
 
   const handlePhoneSubmit = useCallback(async (phone: string) => {
     if (!currentUser) return; setLoading(true);
@@ -125,66 +180,56 @@ const App: React.FC = () => {
   }, [currentUser]);
 
   const rawGenerateNextFiveDays = useCallback(() => {
-      // console.log(`%cApp.tsx: rawGenerateNextFiveDays. Today: ${todayISOString}. Fri Default: ${SHOW_FRIDAYS_BY_DEFAULT}, Sat Default: ${SHOW_SATURDAYS_BY_DEFAULT}`, "color: blue; font-weight: bold;");
-      // console.log("Current blockedDays:", blockedDays);
-      const daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']; // English for logic, Hebrew display handled in ClientPage
+      const daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
       const newAvailableDates: { day: string, date: string, fullDate: string }[] = [];
       let count = 0; let offset = 0;
 
       while (count < 5 && offset < 30) {
-        const dateCandidate = new Date(); 
-        dateCandidate.setDate(dateCandidate.getDate() + offset); 
-        const dayIndex = dateCandidate.getDay(); 
+        const dateCandidate = new Date();
+        dateCandidate.setDate(dateCandidate.getDate() + offset);
+        const dayIndex = dateCandidate.getDay();
         const fullDateStr = dateCandidate.toISOString().split('T')[0];
-        
+
         const isPast = fullDateStr < todayISOString;
         const isAdminBlocked = blockedDays.has(fullDateStr);
-        
         let skipDay = false;
-        // let skipReason = ''; // For detailed logging if needed
 
-        if (isPast) { skipDay = true; /* skipReason += 'Past '; */ }
-        if (dayIndex === 5 && !SHOW_FRIDAYS_BY_DEFAULT) { skipDay = true; /* skipReason += 'Friday (Default Off) '; */ }
-        if (dayIndex === 6 && !SHOW_SATURDAYS_BY_DEFAULT) { skipDay = true; /* skipReason += 'Saturday (Default Off) '; */ }
-        if (isAdminBlocked) { skipDay = true; /* skipReason += 'AdminBlocked '; */ }
-
-        // console.log(`  Checking candidate: ${fullDateStr} (Day: ${daysOfWeek[dayIndex]}) -> Skip: ${skipDay}, Reason: ${skipReason.trim()}`);
+        if (isPast) { skipDay = true; }
+        if (dayIndex === 5 && !SHOW_FRIDAYS_BY_DEFAULT) { skipDay = true; }
+        if (dayIndex === 6 && !SHOW_SATURDAYS_BY_DEFAULT) { skipDay = true; }
+        if (isAdminBlocked) { skipDay = true; }
 
         if (!skipDay) {
             newAvailableDates.push({
-                day: daysOfWeek[dayIndex], // Keep 'Mon', 'Tue' for potential logic if needed elsewhere, ClientPage will translate
-                // ***** THIS IS THE MODIFIED LINE *****
-                date: dateCandidate.toLocaleDateString('he-IL', { month: 'long', day: 'numeric' }), // Hebrew month and day
+                day: daysOfWeek[dayIndex],
+                date: dateCandidate.toLocaleDateString('he-IL', { month: 'long', day: 'numeric' }),
                 fullDate: fullDateStr
             });
             count++;
-            // console.log(`    %cAdded: ${fullDateStr}. Count is now: ${count}`, "color: green;");
-        } else {
-            // console.log(`    %cSkipped: ${fullDateStr}. Reason: ${skipReason.trim()}`, "color: orange;");
         }
         offset++;
       }
-      // console.log(`%cApp.tsx: rawGenerateNextFiveDays produced: [${newAvailableDates.map(d => d.fullDate).join(', ')}]`, "color: blue; font-weight: bold;");
       return newAvailableDates;
-  }, [blockedDays, todayISOString]); 
+  }, [blockedDays, todayISOString]);
 
   const [generatedAvailableDates, setGeneratedAvailableDates] = useState<{ day: string, date: string, fullDate: string }[]>([]);
 
   useEffect(() => {
-    setGeneratedAvailableDates(rawGenerateNextFiveDays());
-  }, [rawGenerateNextFiveDays]);
+    if (!showOpenInBrowserGuidance && (page === 'client' || page === 'admin')) {
+        setGeneratedAvailableDates(rawGenerateNextFiveDays());
+    }
+  }, [rawGenerateNextFiveDays, page, showOpenInBrowserGuidance, blockedDays]);
 
   useEffect(() => {
-    if (generatedAvailableDates.length > 0) {
+    if (!showOpenInBrowserGuidance && (page === 'client' || page === 'admin') && generatedAvailableDates.length > 0) {
         const isSelectedDateStillValid = generatedAvailableDates.some(d => d.fullDate === selectedDate);
-        if (!selectedDate || !isSelectedDateStillValid) { 
-            setSelectedDate(generatedAvailableDates[0].fullDate);
+        if (!selectedDate || !isSelectedDateStillValid) {
+            if (generatedAvailableDates[0]) {
+                setSelectedDate(generatedAvailableDates[0].fullDate);
+            }
         }
-    } else if (selectedDate !== '') { 
-        // console.warn("App: No available dates generated, but selectedDate is set.");
     }
-  }, [generatedAvailableDates, selectedDate]); 
-
+  }, [generatedAvailableDates, selectedDate, page, showOpenInBrowserGuidance]);
 
   const handleReservation = useCallback(async (time: string) => {
        if (!currentUser || !userPhone) { alert("יש להתחבר ולהזין מספר טלפון."); return; }
@@ -220,13 +265,14 @@ const App: React.FC = () => {
        finally { setLoading(false); }
    }, [currentUser, selectedDate]);
 
-  const availableTimes = useMemo(() => [ 
-      '09:00', '09:30', '10:00', '10:30', '11:00', '11:30', 
-      '12:00', '12:30', '13:00', '13:30', '14:00', '14:30', 
-      '15:00', '15:30', '16:00', '16:30', '17:00', '17:30'
+  const availableTimes = useMemo(() => [
+      '09:00', '09:30', '10:00', '10:30', '11:00', '11:30',
+      '12:00', '12:30', '13:00', '13:30', '14:00', '14:30',
+      '15:00', '15:30', '16:00', '16:30', '17:00', '17:30',
+      '18:00', '18:30', '19:00'
   ], []);
 
-  const getUserReservationForSelectedDate = useCallback(() => 
+  const getUserReservationForSelectedDate = useCallback(() =>
     currentUser ? (reservations.find(r => r.userId === currentUser.uid && r.date === selectedDate) || null) : null
   , [currentUser, reservations, selectedDate]);
 
@@ -234,43 +280,63 @@ const App: React.FC = () => {
       const userRes = getUserReservationForSelectedDate(); return !!userRes && userRes.time === time;
    }, [getUserReservationForSelectedDate]);
 
-  const isReservedByOthers = useCallback((time: string) => 
+  const isReservedByOthers = useCallback((time: string) =>
     reservations.some(r => r.date === selectedDate && r.time === time && r.userId !== currentUser?.uid )
   , [reservations, selectedDate, currentUser]);
 
-  if (loading && !currentUser && page === 'login') {
-     return ( <div className="app-loading-spinner"> טוען את האפליקציה... </div> );
+  let pageContent;
+
+  if (showOpenInBrowserGuidance) {
+    pageContent = <OpenInExternalBrowserPage currentUrl={window.location.href} />;
+  } else if (loading) {
+    pageContent = <div className="app-loading-spinner"> טוען את האפליקציה... </div>;
+  } else {
+    switch (page) {
+      case 'login':
+        pageContent = <LoginPage setLoadingApp={setLoading} />;
+        break;
+      case 'get_phone':
+        pageContent = currentUser ? <PhoneInputModal onSubmit={handlePhoneSubmit} onCancel={handleSignOut}/> : <LoginPage setLoadingApp={setLoading} />;
+        break;
+      case 'client':
+        pageContent = (currentUser && userPhone) ? (
+          <ClientPage
+            latestBarberNews={latestNews} userName={currentUser.displayName || "לקוח"}
+            availableTimes={availableTimes} userReservation={getUserReservationForSelectedDate()}
+            handleReservation={handleReservation} cancelReservation={handleCancelUserReservation}
+            goBack={handleSignOut} isReservedByCurrentUser={isReservedByCurrentUser}
+            isReservedByOthers={isReservedByOthers} selectedDate={selectedDate}
+            setSelectedDate={setSelectedDate}
+            generateNextFiveDays={() => generatedAvailableDates}
+            onUpdatePhoneNumber={() => setShowPhoneUpdateModal(true)}
+            blockedDays={blockedDays}
+            blockedTimeSlots={blockedTimeSlots}
+          />
+        ) : <LoginPage setLoadingApp={setLoading} /> ;
+        break;
+      case 'admin':
+        pageContent = currentUser ? (
+          <AdminDashboard
+            reservations={reservations} goBack={handleSignOut} onDeleteReservation={handleDeleteReservation}
+          />
+        ) : <LoginPage setLoadingApp={setLoading} />;
+        break;
+      default:
+        console.error("Reached default case in page rendering switch. Page state:", page);
+        pageContent = <LoginPage setLoadingApp={setLoading} />;
+    }
   }
 
   return (
     <div id="app-container">
-      {page === 'login' && <LoginPage setLoadingApp={setLoading} />}
-      {page === 'get_phone' && currentUser && <PhoneInputModal onSubmit={handlePhoneSubmit} onCancel={handleSignOut}/>}
-      {showPhoneUpdateModal && currentUser && <PhoneInputModal onSubmit={handlePhoneSubmit} onCancel={() => setShowPhoneUpdateModal(false)} currentPhone={userPhone} isUpdating={true}/>}
-      
-      {page === 'client' && currentUser && userPhone && (
-        <ClientPage
-          latestBarberNews={latestNews} userName={currentUser.displayName || "לקוח"}
-          availableTimes={availableTimes} userReservation={getUserReservationForSelectedDate()}
-          handleReservation={handleReservation} cancelReservation={handleCancelUserReservation}
-          goBack={handleSignOut} isReservedByCurrentUser={isReservedByCurrentUser}
-          isReservedByOthers={isReservedByOthers} selectedDate={selectedDate}
-          setSelectedDate={setSelectedDate} 
-          generateNextFiveDays={() => generatedAvailableDates} 
-          onUpdatePhoneNumber={() => setShowPhoneUpdateModal(true)} 
-          blockedDays={blockedDays}
-          blockedTimeSlots={blockedTimeSlots}
+      {pageContent}
+      {showPhoneUpdateModal && currentUser && !showOpenInBrowserGuidance && (
+        <PhoneInputModal
+          onSubmit={handlePhoneSubmit}
+          onCancel={() => setShowPhoneUpdateModal(false)}
+          currentPhone={userPhone}
+          isUpdating={true}
         />
-      )}
-
-      {page === 'admin' && currentUser && (
-        <AdminDashboard 
-          reservations={reservations} goBack={handleSignOut} onDeleteReservation={handleDeleteReservation} 
-        /> 
-      )}
-
-      {loading && page !== 'login' && (
-        <div className="modal-overlay action-loading-overlay"><div className="action-loading-content">מעבד...</div></div>
       )}
     </div>
   );

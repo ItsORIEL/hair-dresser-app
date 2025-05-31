@@ -2,11 +2,12 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { BlockedTimeSlotsMap, getBlockedTimeSlots, blockTimeSlot, unblockTimeSlot } from '../services/firebase-service';
 
-// availableTimes remain as HH:MM strings, as they are values for select, not directly displayed labels needing translation here.
+// MODIFIED: Added new times
 const availableTimes: string[] = [ 
     '09:00', '09:30', '10:00', '10:30', '11:00', '11:30',
     '12:00', '12:30', '13:00', '13:30', '14:00', '14:30',
-    '15:00', '15:30', '16:00', '16:30', '17:00', '17:30'
+    '15:00', '15:30', '16:00', '16:30', '17:00', '17:30',
+    '18:00', '18:30', '19:00' // New times added
 ];
 
 const timeToMinutes = (timeStr: string): number => { 
@@ -15,9 +16,9 @@ const timeToMinutes = (timeStr: string): number => {
     return parseInt(match[1], 10) * 60 + parseInt(match[2], 10);
 };
 
-const formatDateToHebrew_AdminTimeBlocker = (dateString: string): string => {
+const formatDateToDDMMYYYY_AdminTimeBlocker = (dateString: string): string => {
   const date = new Date(dateString + 'T00:00:00Z');
-  return date.toLocaleDateString('he-IL', { // Hebrew locale
+  return date.toLocaleDateString('he-IL', {
     day: '2-digit', month: '2-digit', year: 'numeric', weekday: 'short', timeZone: 'UTC',
   });
 };
@@ -28,8 +29,9 @@ export const AdminTimeSlotBlocker: React.FC = () => {
   const [blockedSlots, setBlockedSlots] = useState<BlockedTimeSlotsMap>(new Map());
   const [loadingSlots, setLoadingSlots] = useState(true);
   const [selectedDate, setSelectedDate] = useState<string>('');
+  // Ensure default endTime is updated if the array length changes significantly
   const [startTime, setStartTime] = useState<string>(availableTimes[0]);
-  const [endTime, setEndTime] = useState<string>(availableTimes[availableTimes.length - 1]);
+  const [endTime, setEndTime] = useState<string>(availableTimes[availableTimes.length - 1]); 
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [isUnblockingAllSlots, setIsUnblockingAllSlots] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
@@ -54,6 +56,7 @@ export const AdminTimeSlotBlocker: React.FC = () => {
 
     setIsProcessing(true); setError(null); setSuccessMessage(null);
     const slotsToBlock: string[] = [];
+    // The availableTimes array used here now includes the new times
     availableTimes.forEach(slot => { 
         const slotM = timeToMinutes(slot);
         if (slotM >= startM && slotM <= endM && !(blockedSlots.get(selectedDate)?.has(slot))) {
@@ -67,7 +70,7 @@ export const AdminTimeSlotBlocker: React.FC = () => {
     }
     try {
       await Promise.all(slotsToBlock.map(slot => blockTimeSlot(selectedDate, slot)));
-      setSuccessMessage(`נחסמו ${slotsToBlock.length} חלונות זמן מ-${startTime} עד ${endTime} בתאריך ${formatDateToHebrew_AdminTimeBlocker(selectedDate)}.`);
+      setSuccessMessage(`נחסמו ${slotsToBlock.length} חלונות זמן מ-${startTime} עד ${endTime} בתאריך ${formatDateToDDMMYYYY_AdminTimeBlocker(selectedDate)}.`);
     } catch (err: any) { setError(`חסימת טווח הזמנים נכשלה: ${err.message || 'אנא נסה שוב.'}`);
     } finally { setIsProcessing(false); setTimeout(() => { setError(null); setSuccessMessage(null); }, 5000); }
   };
@@ -76,8 +79,8 @@ export const AdminTimeSlotBlocker: React.FC = () => {
       setIsProcessing(true); setError(null); setSuccessMessage(null);
       try {
           await unblockTimeSlot(date, time); 
-          setSuccessMessage(`חסימת חלון הזמן ${time} בתאריך ${formatDateToHebrew_AdminTimeBlocker(date)} בוטלה.`);
-      } catch (err: any) { setError(`ביטול חסימת ${time} בתאריך ${formatDateToHebrew_AdminTimeBlocker(date)} נכשל: ${err.message}`);
+          setSuccessMessage(`חסימת חלון הזמן ${time} בתאריך ${formatDateToDDMMYYYY_AdminTimeBlocker(date)} בוטלה.`);
+      } catch (err: any) { setError(`ביטול חסימת ${time} בתאריך ${formatDateToDDMMYYYY_AdminTimeBlocker(date)} נכשל: ${err.message}`);
       } finally { setIsProcessing(false); setTimeout(() => { setError(null); setSuccessMessage(null); }, 4000); }
   };
 
@@ -130,14 +133,19 @@ export const AdminTimeSlotBlocker: React.FC = () => {
 
   const filteredEndTimes = useMemo(() => {
     const startM = timeToMinutes(startTime);
+    // The availableTimes array used here now includes the new times
     return availableTimes.filter(t => timeToMinutes(t) >= startM);
   }, [startTime]);
 
   useEffect(() => {
-    if (timeToMinutes(startTime) > timeToMinutes(endTime)) {
-      setEndTime(filteredEndTimes.length > 0 ? filteredEndTimes[0] : availableTimes[availableTimes.length - 1]);
+    // Ensure endTime is valid if startTime changes
+    const startM = timeToMinutes(startTime);
+    const endM = timeToMinutes(endTime);
+    if (startM > endM || !availableTimes.slice(availableTimes.indexOf(startTime)).includes(endTime)) {
+        const validEndTimes = availableTimes.filter(t => timeToMinutes(t) >= startM);
+        setEndTime(validEndTimes.length > 0 ? validEndTimes[0] : availableTimes[availableTimes.length - 1]);
     }
-  }, [startTime, endTime, filteredEndTimes]);
+  }, [startTime, endTime]); // Removed availableTimes from here as it's constant within component
 
   return (
     <div className="timeslot-blocker-card">
@@ -147,6 +155,7 @@ export const AdminTimeSlotBlocker: React.FC = () => {
         <input type="date" value={selectedDate} onChange={(e)=>{setSelectedDate(e.target.value);setError(null);setSuccessMessage(null);}}
           className="timeslot-blocker-date-input" min={todayISO} aria-label="בחר תאריך לניהול חלונות זמן"/>
         <label htmlFor="start-time-select-admin" className="sr-only">שעת התחלה</label>
+        {/* The select dropdowns will automatically include the new times */}
         <select id="start-time-select-admin" value={startTime} onChange={(e)=>{setStartTime(e.target.value);setError(null);setSuccessMessage(null);}} className="timeslot-blocker-time-select" aria-label="בחר שעת התחלה לטווח">{availableTimes.map(t=>(<option key={`start-${t}`} value={t}>{t}</option>))}</select>
         <span className="time-range-separator">עד</span>
         <label htmlFor="end-time-select-admin" className="sr-only">שעת סיום</label>
@@ -154,7 +163,7 @@ export const AdminTimeSlotBlocker: React.FC = () => {
         <div className="timeslot-blocker-buttons">
             <button onClick={handleBlockRange} disabled={isProcessing || isUnblockingAllSlots ||!selectedDate||!startTime||!endTime} 
                 className="timeslot-blocker-button block" 
-                title={selectedDate?`חסום טווח זמן נבחר בתאריך ${formatDateToHebrew_AdminTimeBlocker(selectedDate)}`:'חסום טווח זמן נבחר'}>
+                title={selectedDate?`חסום טווח זמן נבחר בתאריך ${formatDateToDDMMYYYY_AdminTimeBlocker(selectedDate)}`:'חסום טווח זמן נבחר'}>
                 {isProcessing?'חוסם טווח...':'חסום טווח'}
             </button>
         </div>
@@ -181,8 +190,8 @@ export const AdminTimeSlotBlocker: React.FC = () => {
          : displayedBlockedSlotsList.length===0?(<p className="blocked-slots-list-empty">אין חלונות זמן חסומים כעת או בעתיד.</p>)
          : (<ul aria-label="רשימת חלונות זמן חסומים כעת">
           {displayedBlockedSlotsList.map(({date,time})=>(<li key={`${date}-${time}`} className="blocked-slot-list-item">
-            <span>{formatDateToHebrew_AdminTimeBlocker(date)}<span className="slot-time">{time}</span></span>
-            <button onClick={()=>handleDirectUnblock(date,time)} disabled={isProcessing || isUnblockingAllSlots} className="unblock-slot-list-button" aria-label={`בטל חסימת חלון זמן ${time} בתאריך ${formatDateToHebrew_AdminTimeBlocker(date)}`}>{isProcessing || isUnblockingAllSlots ?'...':'בטל חסימה'}</button>
+            <span>{formatDateToDDMMYYYY_AdminTimeBlocker(date)}<span className="slot-time">{time}</span></span>
+            <button onClick={()=>handleDirectUnblock(date,time)} disabled={isProcessing || isUnblockingAllSlots} className="unblock-slot-list-button" aria-label={`בטל חסימת חלון זמן ${time} בתאריך ${formatDateToDDMMYYYY_AdminTimeBlocker(date)}`}>{isProcessing || isUnblockingAllSlots ?'...':'בטל חסימה'}</button>
           </li>))}</ul>)}
       </div>
     </div>
