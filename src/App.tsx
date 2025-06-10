@@ -17,7 +17,7 @@ import {
 import { User } from 'firebase/auth';
 import { OpenInExternalBrowserPage } from './components/OpenInExternalBrowserPage';
 
-const ADMIN_UID = 'B5X5Iqw9HGbMXm7qEdu7pDdxWP23';
+const ADMIN_UID = 'B5X5Iqw9HGbMXm7qEdu7pDdxWP23'; // Replace with your actual Admin UID
 
 const SHOW_FRIDAYS_BY_DEFAULT = true;
 const SHOW_SATURDAYS_BY_DEFAULT = false;
@@ -81,16 +81,21 @@ const App: React.FC = () => {
   const todayISOString = useMemo(() => getCurrentDateISO(), []);
 
   useEffect(() => {
+    // Proactive detection of problematic environments
+    if (showOpenInBrowserGuidance) return; // Don't run if already showing guidance
+
     const userAgent = navigator.userAgent.toLowerCase();
     const isInstagram = userAgent.includes('instagram');
     const isFacebookApp = userAgent.includes('fban') || userAgent.includes('fbav');
+    // Add more known problematic user agents if needed
+    // const isLinkedInApp = userAgent.includes('linkedin');
 
-    if (isInstagram || isFacebookApp) {
-      console.warn("Problematic user agent detected:", userAgent, ". Will show guidance page.");
+    if (isInstagram || isFacebookApp /*|| isLinkedInApp */) {
+      console.warn("Proactive: Problematic user agent detected:", userAgent, ". Will show guidance page.");
       setShowOpenInBrowserGuidance(true);
-      setLoading(false); 
+      setLoading(false);
     }
-  }, []);
+  }, [showOpenInBrowserGuidance]); // Depend on showOpenInBrowserGuidance to prevent re-triggering
 
   const handleSignOut = useCallback(async () => {
     try {
@@ -103,7 +108,7 @@ const App: React.FC = () => {
 
   useEffect(() => {
     if (showOpenInBrowserGuidance) {
-      return;
+      return; // Stop further processing if guidance page should be shown
     }
 
     setLoading(true);
@@ -123,7 +128,7 @@ const App: React.FC = () => {
         } catch (error) {
           console.error("App: Error post-auth setup:", error);
           alert("שגיאה בהגדרת החיבור.");
-          await signOut();
+          await signOut(); // Sign out on error to reset state
         } finally {
           setLoading(false);
         }
@@ -136,11 +141,11 @@ const App: React.FC = () => {
     });
 
     return () => unsubscribeAuth();
-  }, [showOpenInBrowserGuidance]);
+  }, [showOpenInBrowserGuidance]); // Re-run if guidance state changes (e.g., from false to true)
 
   useEffect(() => {
     if (showOpenInBrowserGuidance || !currentUser) {
-      return () => {};
+      return () => {}; // No subscriptions if guidance is shown or no user
     }
 
     if (page === 'client' || page === 'admin') {
@@ -156,6 +161,7 @@ const App: React.FC = () => {
         unsubBlockedTimeSlots();
       };
     } else {
+      // For pages like 'login' or 'get_phone', we might still want global data
       const unsubGlobalNews = getLatestBarberNews(setLatestNews);
       const unsubGlobalBlockedDays = getBlockedDays(setBlockedDays);
       const unsubGlobalBlockedTimeSlots = getBlockedTimeSlots(setBlockedTimeSlots);
@@ -184,7 +190,7 @@ const App: React.FC = () => {
       const newAvailableDates: { day: string, date: string, fullDate: string }[] = [];
       let count = 0; let offset = 0;
 
-      while (count < 5 && offset < 30) {
+      while (count < 5 && offset < 30) { // Limit search to 30 days
         const dateCandidate = new Date();
         dateCandidate.setDate(dateCandidate.getDate() + offset);
         const dayIndex = dateCandidate.getDay();
@@ -195,9 +201,10 @@ const App: React.FC = () => {
         let skipDay = false;
 
         if (isPast) { skipDay = true; }
-        if (dayIndex === 5 && !SHOW_FRIDAYS_BY_DEFAULT) { skipDay = true; }
-        if (dayIndex === 6 && !SHOW_SATURDAYS_BY_DEFAULT) { skipDay = true; }
-        if (isAdminBlocked) { skipDay = true; }
+        // Default showing/hiding for Fri/Sat based on constants
+        if (dayIndex === 5 && !SHOW_FRIDAYS_BY_DEFAULT) { skipDay = true; } // Friday
+        if (dayIndex === 6 && !SHOW_SATURDAYS_BY_DEFAULT) { skipDay = true; } // Saturday
+        if (isAdminBlocked) { skipDay = true; } // Admin blocked day
 
         if (!skipDay) {
             newAvailableDates.push({
@@ -218,18 +225,21 @@ const App: React.FC = () => {
     if (!showOpenInBrowserGuidance && (page === 'client' || page === 'admin')) {
         setGeneratedAvailableDates(rawGenerateNextFiveDays());
     }
-  }, [rawGenerateNextFiveDays, page, showOpenInBrowserGuidance, blockedDays]);
+  }, [rawGenerateNextFiveDays, page, showOpenInBrowserGuidance, blockedDays]); // Add blockedDays as dependency
 
   useEffect(() => {
+    // This effect ensures selectedDate is valid among the generated dates
     if (!showOpenInBrowserGuidance && (page === 'client' || page === 'admin') && generatedAvailableDates.length > 0) {
         const isSelectedDateStillValid = generatedAvailableDates.some(d => d.fullDate === selectedDate);
         if (!selectedDate || !isSelectedDateStillValid) {
+            // If current selectedDate is not valid (e.g., became blocked, or initial load), select the first available
             if (generatedAvailableDates[0]) {
                 setSelectedDate(generatedAvailableDates[0].fullDate);
             }
         }
     }
-  }, [generatedAvailableDates, selectedDate, page, showOpenInBrowserGuidance]);
+  }, [generatedAvailableDates, selectedDate, page, showOpenInBrowserGuidance, setSelectedDate]);
+
 
   const handleReservation = useCallback(async (time: string) => {
        if (!currentUser || !userPhone) { alert("יש להתחבר ולהזין מספר טלפון."); return; }
@@ -241,7 +251,7 @@ const App: React.FC = () => {
          if (slotDT <= now) { alert('לא ניתן לקבוע תורים בעבר.'); setLoading(false); return; }
          if (!await isTimeSlotAvailable(selectedDate, time, currentUser.uid)) { alert('חלון זמן זה נתפס כרגע.'); setLoading(false); return; }
          const existing = await getUserReservationForDate(currentUser.uid, selectedDate);
-         if (existing?.id) await deleteReservation(existing.id);
+         if (existing?.id) await deleteReservation(existing.id); // Delete existing on the SAME day before creating new
          await createReservation({ name: currentUser.displayName || 'משתמש', phone: userPhone, time, date: selectedDate, userId: currentUser.uid });
          alert(`התור אושר לתאריך ${selectedDate} בשעה ${time}`);
        } catch (e:any) { console.error("App Res Err:", e); alert(`קביעת התור נכשלה: ${e.message||''}`);
@@ -265,7 +275,7 @@ const App: React.FC = () => {
        finally { setLoading(false); }
    }, [currentUser, selectedDate]);
 
-  const availableTimes = useMemo(() => [
+  const availableTimes = useMemo(() => [ // Ensure this matches AdminTimeSlotBlocker
       '09:00', '09:30', '10:00', '10:30', '11:00', '11:30',
       '12:00', '12:30', '13:00', '13:30', '14:00', '14:30',
       '15:00', '15:30', '16:00', '16:30', '17:00', '17:30',
@@ -293,10 +303,17 @@ const App: React.FC = () => {
   } else {
     switch (page) {
       case 'login':
-        pageContent = <LoginPage setLoadingApp={setLoading} />;
+        pageContent = <LoginPage
+          setLoadingApp={setLoading}
+          onAuthErrorSuggestExternalBrowser={() => { // MODIFIED: New prop
+            console.warn("Reactive: Auth error triggered guidance page.");
+            setShowOpenInBrowserGuidance(true);
+            setLoading(false); // Ensure loading indicator is turned off
+          }}
+        />;
         break;
       case 'get_phone':
-        pageContent = currentUser ? <PhoneInputModal onSubmit={handlePhoneSubmit} onCancel={handleSignOut}/> : <LoginPage setLoadingApp={setLoading} />;
+        pageContent = currentUser ? <PhoneInputModal onSubmit={handlePhoneSubmit} onCancel={handleSignOut}/> : <LoginPage setLoadingApp={setLoading} onAuthErrorSuggestExternalBrowser={() => { setShowOpenInBrowserGuidance(true); setLoading(false);}} />;
         break;
       case 'client':
         pageContent = (currentUser && userPhone) ? (
@@ -307,23 +324,23 @@ const App: React.FC = () => {
             goBack={handleSignOut} isReservedByCurrentUser={isReservedByCurrentUser}
             isReservedByOthers={isReservedByOthers} selectedDate={selectedDate}
             setSelectedDate={setSelectedDate}
-            generateNextFiveDays={() => generatedAvailableDates}
+            generateNextFiveDays={() => generatedAvailableDates} // Pass the state directly
             onUpdatePhoneNumber={() => setShowPhoneUpdateModal(true)}
             blockedDays={blockedDays}
             blockedTimeSlots={blockedTimeSlots}
           />
-        ) : <LoginPage setLoadingApp={setLoading} /> ;
+        ) : <LoginPage setLoadingApp={setLoading} onAuthErrorSuggestExternalBrowser={() => { setShowOpenInBrowserGuidance(true); setLoading(false);}}/> ;
         break;
       case 'admin':
         pageContent = currentUser ? (
           <AdminDashboard
             reservations={reservations} goBack={handleSignOut} onDeleteReservation={handleDeleteReservation}
           />
-        ) : <LoginPage setLoadingApp={setLoading} />;
+        ) : <LoginPage setLoadingApp={setLoading} onAuthErrorSuggestExternalBrowser={() => { setShowOpenInBrowserGuidance(true); setLoading(false);}}/>;
         break;
       default:
         console.error("Reached default case in page rendering switch. Page state:", page);
-        pageContent = <LoginPage setLoadingApp={setLoading} />;
+        pageContent = <LoginPage setLoadingApp={setLoading} onAuthErrorSuggestExternalBrowser={() => { setShowOpenInBrowserGuidance(true); setLoading(false);}}/>;
     }
   }
 
