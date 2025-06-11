@@ -17,7 +17,7 @@ import {
 import { User } from 'firebase/auth';
 import { OpenInExternalBrowserPage } from './components/OpenInExternalBrowserPage';
 
-const ADMIN_UID = 'B5X5Iqw9HGbMXm7qEdu7pDdxWP23';
+const ADMIN_UID = 'B5X5Iqw9HGbMXm7qEdu7pDdxWP23'; // Replace with your actual Admin UID
 
 const SHOW_FRIDAYS_BY_DEFAULT = true;
 const SHOW_SATURDAYS_BY_DEFAULT = false;
@@ -80,6 +80,15 @@ const App: React.FC = () => {
 
   const todayISOString = useMemo(() => getCurrentDateISO(), []);
 
+  // <<< --- ADDED THIS useEffect FOR DEBUGGING --- >>>
+  useEffect(() => {
+    console.log("App.tsx: reservations state has been updated. Count:", reservations.length);
+    if (reservations.length > 0) {
+        console.log("App.tsx: Current reservations list:", JSON.stringify(reservations.map(r => ({id: r.id, date: r.date, time: r.time, name: r.name})), null, 2));
+    }
+  }, [reservations]);
+
+
   useEffect(() => {
     const userAgent = navigator.userAgent.toLowerCase();
     const isInstagram = userAgent.includes('instagram');
@@ -88,7 +97,7 @@ const App: React.FC = () => {
     if (isInstagram || isFacebookApp) {
       console.warn("Problematic user agent detected:", userAgent, ". Will show guidance page.");
       setShowOpenInBrowserGuidance(true);
-      setLoading(false); 
+      setLoading(false);
     }
   }, []);
 
@@ -143,29 +152,18 @@ const App: React.FC = () => {
       return () => {};
     }
 
-    if (page === 'client' || page === 'admin') {
-      const unsubReservations = getReservations(setReservations);
-      const unsubBlockedDays = getBlockedDays(setBlockedDays);
-      const unsubNews = getLatestBarberNews(setLatestNews);
-      const unsubBlockedTimeSlots = getBlockedTimeSlots(setBlockedTimeSlots);
+    const unsubReservations = getReservations(setReservations);
+    const unsubBlockedDays = getBlockedDays(setBlockedDays);
+    const unsubNews = getLatestBarberNews(setLatestNews);
+    const unsubBlockedTimeSlots = getBlockedTimeSlots(setBlockedTimeSlots);
 
-      return () => {
-        unsubReservations();
-        unsubBlockedDays();
-        unsubNews();
-        unsubBlockedTimeSlots();
-      };
-    } else {
-      const unsubGlobalNews = getLatestBarberNews(setLatestNews);
-      const unsubGlobalBlockedDays = getBlockedDays(setBlockedDays);
-      const unsubGlobalBlockedTimeSlots = getBlockedTimeSlots(setBlockedTimeSlots);
-      return () => {
-          unsubGlobalNews();
-          unsubGlobalBlockedDays();
-          unsubGlobalBlockedTimeSlots();
-      }
-    }
-  }, [currentUser, page, showOpenInBrowserGuidance]);
+    return () => {
+      unsubReservations();
+      unsubBlockedDays();
+      unsubNews();
+      unsubBlockedTimeSlots();
+    };
+  }, [currentUser, showOpenInBrowserGuidance]);
 
 
   const handlePhoneSubmit = useCallback(async (phone: string) => {
@@ -202,7 +200,7 @@ const App: React.FC = () => {
         if (!skipDay) {
             newAvailableDates.push({
                 day: daysOfWeek[dayIndex],
-                date: dateCandidate.toLocaleDateString('he-IL', { month: 'long', day: 'numeric' }),
+                date: dateCandidate.toLocaleDateString('he-IL', { month: 'short', day: 'numeric' }),
                 fullDate: fullDateStr
             });
             count++;
@@ -255,15 +253,41 @@ const App: React.FC = () => {
        finally { setLoading(false); }
    }, []);
 
-  const handleCancelUserReservation = useCallback(async () => {
-       if (!currentUser) return; setLoading(true);
-       try {
-         const userRes = await getUserReservationForDate(currentUser.uid, selectedDate);
-         if (userRes?.id) { await deleteReservation(userRes.id); alert('התור בוטל.'); }
-         else alert('לא נמצא תור לביטול בתאריך זה.');
-       } catch (e:any) { console.error("App Cancel Err:", e); alert(`ביטול נכשל: ${e.message||''}`); }
-       finally { setLoading(false); }
-   }, [currentUser, selectedDate]);
+    const handleAdminCreateReservation = useCallback(async (clientName: string, clientPhone: string, apptDate: string, apptTime: string): Promise<{ success: boolean; message: string }> => {
+        if (!currentUser || currentUser.uid !== ADMIN_UID) {
+          return { success: false, message: "רק מנהלים יכולים לבצע פעולה זו." };
+        }
+        const isSlotDirectlyTaken = reservations.some(r => r.date === apptDate && r.time === apptTime);
+        if (isSlotDirectlyTaken) {
+            return { success: false, message: `השעה ${apptTime} בתאריך ${apptDate} כבר תפוסה.`};
+        }
+        if (new Date(apptDate + 'T' + apptTime) <= new Date()) {
+            return { success: false, message: 'לא ניתן לקבוע תורים בזמן שכבר עבר.' };
+        }
+        if (blockedDays.has(apptDate) || (blockedTimeSlots.get(apptDate)?.has(apptTime))) {
+             return { success: false, message: `התאריך או השעה שנבחרו חסומים על ידי המנהל.`};
+        }
+
+        setLoading(true);
+        try {
+          await createReservation({
+            name: clientName,
+            phone: clientPhone,
+            time: apptTime,
+            date: apptDate,
+            userId: `admin_created_${Date.now()}`
+          });
+          // <<< --- ADDED THIS LOG --- >>>
+          console.log(`App.tsx: Firebase createReservation called for ${clientName} on ${apptDate} at ${apptTime}. Waiting for listener to update UI.`);
+          return { success: true, message: `התור עבור ${clientName} אושר לתאריך ${apptDate} בשעה ${apptTime}.` };
+        } catch (error: any) {
+          console.error("App: Admin Create Reservation error:", error);
+          return { success: false, message: `יצירת התור נכשלה: ${error.message || 'שגיאה לא ידועה.'}` };
+        } finally {
+          setLoading(false);
+        }
+    }, [currentUser, reservations, blockedDays, blockedTimeSlots]);
+
 
   const availableTimes = useMemo(() => [
       '09:00', '09:30', '10:00', '10:30', '11:00', '11:30',
@@ -303,7 +327,7 @@ const App: React.FC = () => {
           <ClientPage
             latestBarberNews={latestNews} userName={currentUser.displayName || "לקוח"}
             availableTimes={availableTimes} userReservation={getUserReservationForSelectedDate()}
-            handleReservation={handleReservation} cancelReservation={handleCancelUserReservation}
+            handleReservation={handleReservation}
             goBack={handleSignOut} isReservedByCurrentUser={isReservedByCurrentUser}
             isReservedByOthers={isReservedByOthers} selectedDate={selectedDate}
             setSelectedDate={setSelectedDate}
@@ -317,7 +341,13 @@ const App: React.FC = () => {
       case 'admin':
         pageContent = currentUser ? (
           <AdminDashboard
-            reservations={reservations} goBack={handleSignOut} onDeleteReservation={handleDeleteReservation}
+            reservations={reservations}
+            goBack={handleSignOut}
+            onDeleteReservation={handleDeleteReservation}
+            blockedDaysApp={blockedDays}
+            blockedTimeSlotsApp={blockedTimeSlots}
+            availableTimesApp={availableTimes}
+            onAdminCreateReservationApp={handleAdminCreateReservation}
           />
         ) : <LoginPage setLoadingApp={setLoading} />;
         break;

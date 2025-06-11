@@ -1,40 +1,43 @@
 // src/components/AdminDashboard.tsx
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useMemo } from 'react'; // Removed useState, useEffect as they are not used locally for blockedDays
 import './AdminDashboard.css';
-import { Reservation, getBlockedDays, blockDay, unblockDay } from '../services/firebase-service';
+import { Reservation, blockDay, unblockDay, BlockedTimeSlotsMap } from '../services/firebase-service';
 import { AdminNewsPublisher } from './AdminNewsPublisher';
 import { AdminDayBlocker } from './AdminDayBlocker';
 import { AdminTimeSlotBlocker } from './AdminTimeSlotBlocker';
+import { AdminAppointmentCreator } from './AdminAppointmentCreator';
 
 interface AdminDashboardProps {
   reservations: Reservation[];
   goBack: () => void;
   onDeleteReservation: (id: string) => void;
+  blockedDaysApp: Set<string>;
+  blockedTimeSlotsApp: BlockedTimeSlotsMap;
+  availableTimesApp: string[];
+  onAdminCreateReservationApp: (name: string, phone: string, date: string, time: string) => Promise<{ success: boolean; message: string }>;
 }
 
 const formatDateToHebrew = (dateString: string): string => {
-  const date = new Date(dateString + 'T00:00:00Z'); // Interpret YYYY-MM-DD as UTC
-  return date.toLocaleDateString('he-IL', { // Use Hebrew locale
+  const date = new Date(dateString + 'T00:00:00Z');
+  return date.toLocaleDateString('he-IL', {
     day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'UTC',
   });
 };
 
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({
-  reservations, goBack, onDeleteReservation
+  reservations, goBack, onDeleteReservation,
+  blockedDaysApp, blockedTimeSlotsApp, availableTimesApp, onAdminCreateReservationApp
 }) => {
-  const [blockedDays, setBlockedDays] = useState<Set<string>>(new Set());
-  const [loadingBlockedDays, setLoadingBlockedDays] = useState(true);
 
-  useEffect(() => {
-    setLoadingBlockedDays(true);
-    const unsub = getBlockedDays((days) => { setBlockedDays(days); setLoadingBlockedDays(false); });
-    return () => unsub();
-  }, []);
+  // <<< --- ADDED THIS LOG --- >>>
+  console.log("AdminDashboard: Component rendered/updated. Received reservations prop. Count:", reservations.length);
+   if (reservations.length > 0) {
+        console.log("AdminDashboard: Current reservations prop list:", JSON.stringify(reservations.map(r => ({id: r.id, date: r.date, time: r.time, name: r.name})), null, 2));
+    }
 
   const todayISO = useMemo(() => new Date().toISOString().split('T')[0], []);
   const todayReadableHebrew = useMemo(() => {
     const todayDate = new Date();
-    // For full day name, month name etc. in Hebrew
     return todayDate.toLocaleDateString('he-IL', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
   }, []);
   const yesterdayISO = useMemo(() => { const y = new Date(); y.setDate(y.getDate() - 1); return y.toISOString().split('T')[0]; }, []);
@@ -43,7 +46,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const upcomingResCount = useMemo(() => reservations.filter(r => r.date > todayISO).length, [reservations, todayISO]);
 
   const handleCancelClick = (reservation: Reservation) => {
-     const dayBlocked = blockedDays.has(reservation.date);
+     const dayBlocked = blockedDaysApp.has(reservation.date);
      const dispDate = formatDateToHebrew(reservation.date);
      const clientName = reservation.name || 'לקוח';
      let confirmationMessage = `האם לבטל את התור של ${clientName} בתאריך ${dispDate} בשעה ${reservation.time}?`;
@@ -57,6 +60,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   };
 
   const sortedReservations = useMemo(() => {
+    // <<< --- ADDED THIS LOG INSIDE useMemo --- >>>
+    console.log("AdminDashboard: Recalculating sortedReservations. Input reservations count:", reservations.length);
     return reservations.filter(r => r.date >= yesterdayISO)
       .sort((a,b) => (a.date.localeCompare(b.date) || a.time.localeCompare(b.time)));
   }, [reservations, yesterdayISO]);
@@ -79,17 +84,26 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         <div className="stat-card"><div className="stat-value">{todayResCount}</div><div className="stat-label">תורים להיום</div></div>
         <div className="stat-card"><div className="stat-value">{upcomingResCount}</div><div className="stat-label">תורים עתידיים</div></div>
       </div>
+
+      <AdminAppointmentCreator
+        availableTimes={availableTimesApp}
+        blockedDays={blockedDaysApp}
+        blockedTimeSlots={blockedTimeSlotsApp}
+        reservations={reservations}
+        onAdminCreateReservation={onAdminCreateReservationApp}
+      />
+
       <AdminNewsPublisher />
-      {loadingBlockedDays ? (<div className="day-blocker-card">טוען ניהול ימים...</div>)
-       : (<AdminDayBlocker blockedDays={blockedDays} onBlockDay={blockDay} onUnblockDay={unblockDay} />)}
+      <AdminDayBlocker blockedDays={blockedDaysApp} onBlockDay={blockDay} onUnblockDay={unblockDay} />
       <AdminTimeSlotBlocker />
+
       <div className="reservations-card admin-appointments-table-card">
         <div className="section-header"><h2 className="section-title">תורים (אתמול, היום ועתידיים)</h2></div>
         {sortedReservations.length === 0 ? (<div className="empty-state"><div className="empty-icon">📅</div><p>אין תורים רלוונטיים.</p></div>)
          : (<table className="reservation-table" aria-label="רשימת תורים">
             <thead><tr><th>פרטי לקוח</th><th>תאריך ושעת התור</th><th>סטטוס</th><th>פעולות</th></tr></thead><tbody>
             {sortedReservations.map((res) => {
-              const isBlk = blockedDays.has(res.date);
+              const isBlk = blockedDaysApp.has(res.date);
               const clientName = res.name || 'לא ידוע';
               return (<tr key={res.id} className={`reservation-row ${isBlk?'blocked-day-row':''}`}>
                 <td className="client-details-cell"><div>{clientName}</div><div className="reservation-phone-subline">{res.phone?<a href={`tel:${formatTelLink(res.phone)}`} className="phone-link">{res.phone}</a>:'אין טלפון'}</div></td>
@@ -102,10 +116,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       <div className="reservations-card admin-today-summary-card">
         <div className="section-header">
           <h2 className="section-title">היום • {todayReadableHebrew}</h2>
-          {blockedDays.has(todayISO) && <span className="status-indicator blocked">(יום חסום)</span>}
+          {blockedDaysApp.has(todayISO) && <span className="status-indicator blocked">(יום חסום)</span>}
         </div>
-        {blockedDays.has(todayISO)?(<p>יום זה חסום. הזמנות חדשות אינן אפשריות. תורים שכבר נקבעו להיום מוצגים למעלה.</p>)
-         :(<p>{todayResCount === 0 ? "אין תורים מתוכננים להיום." : 
+        {blockedDaysApp.has(todayISO)?(<p>יום זה חסום. הזמנות חדשות אינן אפשריות. תורים שכבר נקבעו להיום מוצגים למעלה.</p>)
+         :(<p>{todayResCount === 0 ? "אין תורים מתוכננים להיום." :
               todayResCount === 1 ? `יש תור אחד מתוכנן להיום.` : `יש ${todayResCount} תורים מתוכננים להיום.`
             }</p>)}
       </div>

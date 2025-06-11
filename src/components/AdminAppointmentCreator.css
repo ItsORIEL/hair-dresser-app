@@ -1,0 +1,93 @@
+/* src/components/AdminAppointmentCreator.css */
+
+.admin-appointment-creator-card {
+  /* This class primarily inherits from .reservations-card in AdminDashboard.css */
+  /* Add any specific overrides or additional styles for this card here if needed */
+  margin-top: 30px; /* As previously set inline */
+}
+
+.admin-creator-form .form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 20px;
+  margin-bottom: 20px;
+}
+
+.admin-creator-form .form-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.admin-creator-form label {
+  margin-bottom: 8px;
+  font-weight: 500;
+  font-size: 0.9em;
+  color: var(--text-secondary, #555);
+}
+
+.admin-form-input,
+.admin-form-select {
+  padding: 10px 12px;
+  border: 1px solid var(--border-color, #eaeaea);
+  border-radius: 8px;
+  font-size: 1em;
+  box-sizing: border-box;
+  background-color: white; /* Ensure white background for inputs */
+}
+
+.admin-form-input:focus,
+.admin-form-select:focus {
+  border-color: var(--primary-color, #ff3366);
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(255, 51, 102, 0.2);
+}
+
+/* Styles for reused classes if they are not already globally/admin styled */
+/* It's better to have these in a more global admin CSS if truly shared */
+
+/* .modal-error (used for phoneError) */
+.admin-creator-form .modal-error { /* Scoping it to this form if needed */
+  color: red;
+  font-size: 0.8em;
+  margin-top: 4px;
+  min-height: 1.2em; /* Reserve space */
+}
+
+/* .news-publisher-button (reused for submit button) */
+.admin-creator-form .news-publisher-button {
+  background-color: var(--primary-color, #ff3366);
+  color: white;
+  border: none;
+  border-radius: 30px;
+  padding: 10px 20px; /* Specific padding for this context */
+  font-weight: 500;
+  font-size: 1em;
+  cursor: pointer;
+  transition: background-color 0.2s, opacity 0.2s;
+  margin-top: 20px; /* Specific margin */
+  width: auto; /* Ensure it's not full width by default */
+}
+
+.admin-creator-form .news-publisher-button:hover:not(:disabled) {
+  background-color: #e62958; /* Darker primary */
+}
+
+.admin-creator-form .news-publisher-button:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+/* .news-publisher-status (reused for status messages) */
+.admin-appointment-creator-card .news-publisher-status { /* Scoping it to this card */
+  margin-top: 15px;
+  font-size: 0.9em;
+  font-weight: 500;
+}
+
+.admin-appointment-creator-card .news-publisher-status.success {
+  color: green;
+}
+
+.admin-appointment-creator-card .news-publisher-status.error {
+  color: red;
+}

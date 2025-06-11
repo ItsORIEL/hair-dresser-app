@@ -7,7 +7,7 @@ export interface Reservation {
   name: string;
   phone: string;
   time: string; // EXPECTS HH:MM format (e.g., "09:00", "14:30")
-  date: string; 
+  date: string;
   id: string;
   userId: string;
 }
@@ -19,7 +19,6 @@ export interface UserProfile {
   phone?: string;
 }
 
-// This is the definition
 export interface BarberNews {
   id?: string;
   message: string;
@@ -29,15 +28,14 @@ export interface BarberNews {
 export type BlockedTimeSlotsMap = Map<string, Set<string>>;
 const db = getDatabase(app);
 
-// Robust AM/PM to HH:MM conversion
 const convertAMPMToHHMM = (timeAMPM: string | undefined | null): string => {
-    if (!timeAMPM) return ''; 
-    if (/^\d{2}:\d{2}$/.test(timeAMPM)) return timeAMPM; // Already HH:MM
+    if (!timeAMPM) return '';
+    if (/^\d{2}:\d{2}$/.test(timeAMPM)) return timeAMPM;
 
     const timeMatch = timeAMPM.match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i);
     if (!timeMatch) {
         console.warn(`convertAMPMToHHMM: Could not parse time: ${timeAMPM}. Returning as is.`);
-        return timeAMPM; 
+        return timeAMPM;
     }
     let hours = parseInt(timeMatch[1], 10);
     const minutes = parseInt(timeMatch[2], 10);
@@ -45,7 +43,7 @@ const convertAMPMToHHMM = (timeAMPM: string | undefined | null): string => {
 
     if (modifier === 'PM' && hours < 12) hours += 12;
     if (modifier === 'AM' && hours === 12) hours = 0;
-    
+
     return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
 };
 
@@ -64,7 +62,7 @@ export const createReservation = async (reservationData: Omit<Reservation, 'id'>
   const newReservationRef = push(reservationsRef);
   const newReservationId = newReservationRef.key;
   if (!newReservationId) throw new Error("Failed to generate reservation ID.");
-  
+
   const reservationToSave: Reservation = { ...reservationData, id: newReservationId };
   await set(newReservationRef, reservationToSave);
   return newReservationId;
@@ -77,16 +75,18 @@ export const getReservations = (callback: (reservations: Reservation[]) => void)
     const reservationsList: Reservation[] = [];
     if (data) {
       Object.keys(data).forEach((key) => {
-        const reservation = data[key] as any; 
+        const reservation = data[key] as any;
         if (reservation.time) {
             reservation.time = convertAMPMToHHMM(reservation.time);
         } else {
-            reservation.time = "00:00"; 
+            reservation.time = "00:00";
             console.warn(`Reservation ${key} has no time field or is invalid.`);
         }
-        reservationsList.push({ ...reservation, id: reservation.id || key } as Reservation);
+        reservationsList.push({ ...reservation, id: key } as Reservation); // Key is the ID
       });
     }
+    // <<< --- ADDED THIS LOG --- >>>
+    console.log("Firebase Service: getReservations listener fired. Count:", reservationsList.length, "Data received:", data ? JSON.stringify(Object.values(data).map((r:any) => ({id: r.id, date: r.date, time: r.time, name: r.name})), null, 2) : "No data");
     callback(reservationsList);
   });
   return unsubscribe;
@@ -98,7 +98,7 @@ export const deleteReservation = async (reservationId: string): Promise<void> =>
   await remove(reservationRef);
 };
 
-export const isTimeSlotBooked = async (date: string, time: string): Promise<boolean> => { 
+export const isTimeSlotBooked = async (date: string, time: string): Promise<boolean> => {
     if (!/^\d{2}:\d{2}$/.test(time)) { console.warn("isTimeSlotBooked invalid time:", time); return true; }
     const reservationsRef = ref(db, 'reservations');
     const dateQuery = query(reservationsRef, orderByChild('date'), equalTo(date));
@@ -107,13 +107,13 @@ export const isTimeSlotBooked = async (date: string, time: string): Promise<bool
     const data = snapshot.val();
     for (const key in data) {
         let reservationTimeInDB = data[key].time;
-        if (reservationTimeInDB) reservationTimeInDB = convertAMPMToHHMM(reservationTimeInDB); 
+        if (reservationTimeInDB) reservationTimeInDB = convertAMPMToHHMM(reservationTimeInDB);
         if (reservationTimeInDB === time) return true;
     }
     return false;
 };
 
-export const isTimeSlotAvailable = async (date: string, time: string, currentUserId?: string): Promise<boolean> => { 
+export const isTimeSlotAvailable = async (date: string, time: string, currentUserId?: string): Promise<boolean> => {
     if (!/^\d{2}:\d{2}$/.test(time)) { console.warn("isTimeSlotAvailable invalid time:", time); return false; }
     const reservationsRef = ref(db, 'reservations');
     const dateQuery = query(reservationsRef, orderByChild('date'), equalTo(date));
@@ -140,12 +140,12 @@ export const getUserReservationForDate = async (userId: string, date: string): P
     if (!snapshot.exists()) return null;
     let foundReservation: Reservation | null = null;
     snapshot.forEach((childSnapshot) => {
-        const reservation = childSnapshot.val() as any; 
+        const reservation = childSnapshot.val() as any;
         if (reservation.date === date) {
             if (reservation.time) reservation.time = convertAMPMToHHMM(reservation.time);
             else reservation.time = "00:00"; // Should not happen with good data
             foundReservation = { ...reservation, id: childSnapshot.key! } as Reservation;
-            return true; 
+            return true;
         }
     });
     return foundReservation;
@@ -154,7 +154,7 @@ export const getUserReservationForDate = async (userId: string, date: string): P
 export const saveUserPhoneNumber = async (userId: string, phoneNumber: string, displayName: string, email: string | null): Promise<void> => {
   const userProfileRef = ref(db, `userProfiles/${userId}`);
   const profileData: UserProfile = { uid: userId, displayName: displayName || "User", email: email, phone: phoneNumber };
-  try { await set(userProfileRef, profileData); } 
+  try { await set(userProfileRef, profileData); }
   catch (error) { console.error(`Error saving user profile for ${userId}:`, error); throw error; }
 };
 export const getUserPhoneNumber = async (userId: string): Promise<string | undefined> => {
@@ -170,7 +170,7 @@ export const postBarberNews = async (message: string): Promise<string> => {
   const newNewsId = newNewsItemRef.key;
   if (!newNewsId) throw new Error("Failed to generate ID for new news item.");
   const newsItem: Omit<BarberNews, 'id'> = { message: message, timestamp: serverTimestamp() };
-  try { await set(newNewsItemRef, newsItem); return newNewsId; } 
+  try { await set(newNewsItemRef, newsItem); return newNewsId; }
   catch (error) { console.error(`Error posting news item ${newNewsId}:`, error); throw error; }
 };
 export const getLatestBarberNews = (callback: (news: BarberNews | null) => void): () => void => {
@@ -197,13 +197,13 @@ export const getBlockedDays = (callback: (blockedDays: Set<string>) => void): ()
 export const blockDay = async (dateString: string): Promise<void> => {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dateString)) throw new Error("Invalid date format. Use YYYY-MM-DD.");
   const blockedDayRef = ref(db, `blockedDays/${dateString}`);
-  try { await set(blockedDayRef, true); } 
+  try { await set(blockedDayRef, true); }
   catch (error) { console.error(`Error blocking day ${dateString}:`, error); throw error; }
 };
 export const unblockDay = async (dateString: string): Promise<void> => {
    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateString)) throw new Error("Invalid date format. Use YYYY-MM-DD.");
   const blockedDayRef = ref(db, `blockedDays/${dateString}`);
-  try { await remove(blockedDayRef); } 
+  try { await remove(blockedDayRef); }
   catch (error) { console.error(`Error unblocking day ${dateString}:`, error); throw error; }
 };
 
@@ -220,7 +220,7 @@ export const getBlockedTimeSlots = (callback: (slots: BlockedTimeSlotsMap) => vo
                         const timeSet = new Set<string>();
                         Object.keys(timesFromDB).forEach((timeKey) => {
                             if (timesFromDB[timeKey] === true) {
-                                const processedTimeKey = convertAMPMToHHMM(timeKey); 
+                                const processedTimeKey = convertAMPMToHHMM(timeKey);
                                 if (/^\d{2}:\d{2}$/.test(processedTimeKey)) {
                                     timeSet.add(processedTimeKey);
                                 } else {
@@ -238,14 +238,14 @@ export const getBlockedTimeSlots = (callback: (slots: BlockedTimeSlotsMap) => vo
     return unsubscribe;
 };
 
-export const blockTimeSlot = async (dateString: string, timeString: string): Promise<void> => { 
+export const blockTimeSlot = async (dateString: string, timeString: string): Promise<void> => {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(dateString)) throw new Error("Invalid date format.");
     if (!/^\d{2}:\d{2}$/.test(timeString)) throw new Error(`Invalid time format to block: ${timeString}. Use "HH:MM".`);
-    const blockedSlotRef = ref(db, `blockedTimeSlots/${dateString}/${timeString}`); 
+    const blockedSlotRef = ref(db, `blockedTimeSlots/${dateString}/${timeString}`);
     await set(blockedSlotRef, true);
 };
 
-export const unblockTimeSlot = async (dateString: string, timeString: string): Promise<void> => { 
+export const unblockTimeSlot = async (dateString: string, timeString: string): Promise<void> => {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(dateString)) throw new Error("Invalid date format.");
     if (!/^\d{2}:\d{2}$/.test(timeString)) throw new Error(`Invalid time format to unblock: ${timeString}. Use "HH:MM".`);
     const blockedSlotRef = ref(db, `blockedTimeSlots/${dateString}/${timeString}`);
